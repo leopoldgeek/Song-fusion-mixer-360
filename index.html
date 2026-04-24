@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Song Fusion Mixer 360</title>
+
+<style>
+body {
+    margin: 0;
+    background: radial-gradient(circle at center, #020617, #000);
+    color: white;
+    font-family: "Segoe UI", sans-serif;
+    text-align: center;
+}
+
+/* TITRE */
+h1 {
+    margin: 15px;
+    font-weight: 300;
+    letter-spacing: 2px;
+    color: #38bdf8;
+    text-shadow: 0 0 10px #38bdf8;
+}
+
+/* ZONE PRINCIPALE */
+#container {
+    position: relative;
+    width: 600px;
+    height: 500px;
+    margin: auto;
+    border-radius: 20px;
+    box-shadow: inset 0 0 40px rgba(56,189,248,0.1);
+}
+
+/* CENTRE */
+#center {
+    position: absolute;
+    top: 215px;
+    left: 265px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fb923c, #ea580c);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    z-index: 10;
+    box-shadow: 0 0 20px #f97316, 0 0 40px #f97316;
+    animation: pulse 2s infinite;
+}
+
+/* PULSE CENTRE */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
+/* BULLES */
+.bubble {
+    position: absolute;
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #38bdf8, #0ea5e9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    user-select: none;
+    box-shadow: 0 0 15px #38bdf8;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.bubble:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 25px #38bdf8;
+}
+
+/* ZONE CONTROLES */
+#controls {
+    width: 600px;
+    height: 140px;
+    margin: auto;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 12px;
+    border-top: 1px solid rgba(56,189,248,0.3);
+    backdrop-filter: blur(10px);
+}
+
+/* SLIDERS */
+.slider {
+    writing-mode: bt-lr;
+    -webkit-appearance: slider-vertical;
+    width: 20px;
+    height: 110px;
+    background: transparent;
+    filter: drop-shadow(0 0 5px #22c55e);
+}
+
+/* INPUT FILE */
+input[type="file"] {
+    margin: 10px;
+    color: #38bdf8;
+}
+
+/* PETIT GLOW GLOBAL */
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(56,189,248,0.05), transparent);
+    pointer-events: none;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🎧Song Fusion Mixer 360</h1>
+
+<input type="file" id="fileInput" accept="audio/mp3">
+
+<div id="container">
+    <div id="center">CORE</div>
+</div>
+
+<div id="controls"></div>
+
+<script>
+const fileInput = document.getElementById("fileInput");
+const container = document.getElementById("container");
+const controls = document.getElementById("controls");
+const center = document.getElementById("center");
+
+let baseAudio = null;
+let bubbles = [];
+let bubbleCount = 0;
+
+fileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const audio = new Audio(URL.createObjectURL(file));
+    audio.loop = true;
+    audio.volume = 1;
+
+    createSlider(audio);
+
+    if (!baseAudio) {
+        baseAudio = audio;
+        baseAudio.play();
+        center.innerText = "CORE 🔊";
+        return;
+    }
+
+    createBubble(audio);
+});
+
+function createSlider(audio) {
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = 0;
+    slider.max = 1;
+    slider.step = 0.01;
+    slider.value = 1;
+    slider.className = "slider";
+
+    slider.oninput = () => {
+        audio.volume = slider.value;
+    };
+
+    controls.appendChild(slider);
+}
+
+function createBubble(audio) {
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.innerText = ++bubbleCount;
+
+    container.appendChild(bubble);
+    bubbles.push(bubble);
+
+    updateBubblePositions();
+    makeDraggable(bubble, audio);
+}
+
+function updateBubblePositions() {
+    const radius = 200;
+    const angleStep = (2 * Math.PI) / bubbles.length;
+
+    bubbles.forEach((bubble, i) => {
+        let angle = i * angleStep;
+        let x = 265 + radius * Math.cos(angle);
+        let y = 215 + radius * Math.sin(angle);
+
+        bubble.style.left = x + "px";
+        bubble.style.top = y + "px";
+    });
+}
+
+function makeDraggable(element, audio) {
+    let offsetX, offsetY;
+    let isDragging = false;
+
+    element.addEventListener("mousedown", (e) => {
+        isDragging = true;
+        offsetX = e.offsetX;
+        offsetY = e.offsetY;
+        element.style.cursor = "grabbing";
+    });
+
+    document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+
+        let rect = container.getBoundingClientRect();
+        let x = e.clientX - rect.left - offsetX;
+        let y = e.clientY - rect.top - offsetY;
+
+        if (y > 420) return;
+
+        element.style.left = x + "px";
+        element.style.top = y + "px";
+    });
+
+    document.addEventListener("mouseup", () => {
+        if (!isDragging) return;
+        isDragging = false;
+        element.style.cursor = "grab";
+
+        if (isColliding(element, center)) {
+            audio.play();
+
+            element.remove();
+            bubbles = bubbles.filter(b => b !== element);
+            updateBubblePositions();
+
+            center.style.transform = "scale(1.2)";
+            setTimeout(() => center.style.transform = "scale(1)", 200);
+        }
+    });
+}
+
+function isColliding(a, b) {
+    let r1 = a.getBoundingClientRect();
+    let r2 = b.getBoundingClientRect();
+
+    return !(
+        r1.right < r2.left ||
+        r1.left > r2.right ||
+        r1.bottom < r2.top ||
+        r1.top > r2.bottom
+    );
+}
+</script>
+
+</body>
+</html>
