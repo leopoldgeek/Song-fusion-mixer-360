@@ -6,8 +6,40 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body{background:#020617;color:white;text-align:center;font-family:Arial;}
-input,button{margin:5px;padding:6px;}
+body{
+    margin:0;
+    background:#020617;
+    color:white;
+    font-family:Arial;
+    text-align:center;
+}
+
+#panel{
+    padding:10px;
+}
+
+input,button{
+    margin:4px;
+    padding:6px;
+}
+
+/* LIBRARY */
+#library{
+    margin-top:20px;
+}
+
+.mix{
+    background:#111827;
+    margin:8px auto;
+    padding:10px;
+    width:250px;
+    border-radius:8px;
+    cursor:pointer;
+}
+
+.mix:hover{
+    background:#1f2937;
+}
 </style>
 </head>
 
@@ -15,15 +47,24 @@ input,button{margin:5px;padding:6px;}
 
 <h2>☁️ Song360 Cloud</h2>
 
+<div id="panel">
 <input id="email" placeholder="email">
 <input id="password" type="password"><br>
 
-<button onclick="signUp()">Créer</button>
-<button onclick="signIn()">Login</button>
+<button onclick="signup()">Créer compte</button>
+<button onclick="login()">Connexion</button>
+<button onclick="logout()">Logout</button>
+
+<br><br>
+
 <button onclick="saveMix(true)">🌐 Public</button>
 <button onclick="saveMix(false)">🔒 Privé</button>
 
-<div id="status"></div>
+<p id="status">Non connecté</p>
+</div>
+
+<h3>📚 Bibliothèque</h3>
+<div id="library"></div>
 
 <script>
 const supabase = window.supabase.createClient(
@@ -35,44 +76,95 @@ let user=null;
 let mix=JSON.parse(localStorage.getItem("mix_temp")||"[]");
 
 /* AUTH */
-async function signUp(){
- await supabase.auth.signUp({
+async function signup(){
+ const {error}=await supabase.auth.signUp({
   email:email.value,
   password:password.value
  });
- alert("Compte créé");
+
+ alert(error?error.message:"Compte créé !");
 }
 
-async function signIn(){
+async function login(){
  const {data,error}=await supabase.auth.signInWithPassword({
   email:email.value,
   password:password.value
  });
+
  if(error)return alert(error.message);
+
  user=data.user;
- updateStatus();
+ status.innerText="Connecté : "+user.email;
+
+ loadLibrary(); // 🔥 IMPORTANT
 }
 
-function updateStatus(){
- status.innerText=user?"Connecté: "+user.email:"Non connecté";
+async function logout(){
+ await supabase.auth.signOut();
+ user=null;
+ library.innerHTML="";
+ status.innerText="Déconnecté";
 }
 
-/* SAVE */
+/* SAVE MIX */
 async function saveMix(isPublic){
  if(!user)return alert("connecte toi");
 
  const {error}=await supabase
-  .from("mixes")
-  .insert([{
-   user_id:user.id,
-   is_public:isPublic,
-   data:mix
-  }]);
+ .from("mixes")
+ .insert([{
+  user_id:user.id,
+  is_public:isPublic,
+  data:mix
+ }]);
 
  if(error)return alert(error.message);
 
  alert("Mix sauvegardé !");
+ loadLibrary();
 }
+
+/* 📚 LOAD USER LIBRARY */
+async function loadLibrary(){
+ if(!user)return;
+
+ const {data,error}=await supabase
+ .from("mixes")
+ .select("*")
+ .eq("user_id",user.id);
+
+ if(error)return console.log(error);
+
+ library.innerHTML="";
+
+ data.forEach(m=>{
+  const div=document.createElement("div");
+  div.className="mix";
+
+  div.innerHTML=`
+   ${m.is_public?"🌐 Public":"🔒 Privé"}
+   <br>
+   ▶ ouvrir
+  `;
+
+  div.onclick=()=>{
+   localStorage.setItem("mix_temp",JSON.stringify(m.data));
+   alert("Mix chargé dans le mixer !");
+  };
+
+  library.appendChild(div);
+ });
+}
+
+/* auto restore session */
+supabase.auth.getSession().then(({data})=>{
+ user=data.session?.user;
+
+ if(user){
+  status.innerText="Connecté : "+user.email;
+  loadLibrary();
+ }
+});
 </script>
 
 </body>
