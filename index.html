@@ -6,32 +6,50 @@
 <title>Song Fusion Mixer 360 PRO</title>
 
 <style>
+/* ===== GLOBAL ===== */
 body {
     margin: 0;
+    height: 100vh;
+    overflow: hidden;
     background: radial-gradient(circle at center, #020617, #000);
     color: white;
     font-family: "Segoe UI", sans-serif;
-    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
+/* ===== TITLE ===== */
 h1 {
-    margin: 15px;
-    font-weight: 300;
+    margin: 6px;
+    font-size: 18px;
     color: #38bdf8;
     text-shadow: 0 0 10px #38bdf8;
 }
 
+/* ===== MAIN LAYOUT ===== */
+#main {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 18px;
+    width: 100%;
+    height: 62vh;
+}
+
+/* ===== MIXER ===== */
 #container {
     position: relative;
-    width: 600px;
-    height: 500px;
-    margin: auto;
+    width: 420px;
+    height: 420px;
+    transform: scale(0.95);
 }
 
 #center {
     position: absolute;
-    top: 215px;
-    left: 265px;
+    top: 170px;
+    left: 170px;
     width: 80px;
     height: 80px;
     border-radius: 50%;
@@ -40,52 +58,65 @@ h1 {
     align-items: center;
     justify-content: center;
     font-weight: bold;
-    box-shadow: 0 0 30px #f97316;
+    box-shadow: 0 0 25px #f97316;
     transition: 0.2s;
 }
 
+/* ===== BUBBLES ===== */
 .bubble {
     position: absolute;
-    width: 70px;
-    height: 70px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
     background: radial-gradient(circle, #38bdf8, #0ea5e9);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: grab;
-    box-shadow: 0 0 15px #38bdf8;
+    box-shadow: 0 0 12px #38bdf8;
+    font-size: 12px;
 }
 
+/* ===== VISUALIZER ===== */
+#visualizer {
+    width: 320px;
+    height: 120px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 10px;
+}
+
+/* ===== CONTROLS ===== */
 #controls {
-    width: 600px;
-    margin: auto;
+    width: 100%;
+    height: 110px;
     display: flex;
     justify-content: center;
+    align-items: center;
     gap: 10px;
     flex-wrap: wrap;
 }
 
-.slider {
-    width: 80px;
-}
-
+/* ===== EQ SLIDERS ===== */
 .eq {
-    width: 80px;
+    width: 55px;
+    height: 90px;
     writing-mode: bt-lr;
     -webkit-appearance: slider-vertical;
 }
 
+/* ===== BUTTONS ===== */
 button {
-    padding: 8px;
+    padding: 6px 10px;
     border-radius: 8px;
     border: none;
     background: #38bdf8;
     cursor: pointer;
+    font-size: 12px;
 }
 
-#visualizer {
-    margin-top: 10px;
+/* ===== INPUT ===== */
+input[type="file"] {
+    font-size: 12px;
 }
 </style>
 </head>
@@ -96,11 +127,15 @@ button {
 
 <input type="file" id="fileInput" accept="audio/*">
 
-<div id="container">
-    <div id="center">CORE</div>
-</div>
+<div id="main">
 
-<canvas id="visualizer" width="600" height="120"></canvas>
+    <div id="container">
+        <div id="center">CORE</div>
+    </div>
+
+    <canvas id="visualizer" width="320" height="120"></canvas>
+
+</div>
 
 <div id="controls">
     <input type="range" id="bass" class="eq" min="-30" max="30" value="0">
@@ -121,38 +156,28 @@ const ctx = canvas.getContext("2d");
 
 let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let analyser = audioCtx.createAnalyser();
+analyser.fftSize = 256;
 
 let bubbles = [];
-let audioNodes = [];
-let mixState = [];
 
-let bassFilter = audioCtx.createBiquadFilter();
-bassFilter.type = "lowshelf";
+let bass = audioCtx.createBiquadFilter();
+bass.type = "lowshelf";
+bass.frequency.value = 120;
 
-let midFilter = audioCtx.createBiquadFilter();
-midFilter.type = "peaking";
+let mid = audioCtx.createBiquadFilter();
+mid.type = "peaking";
+mid.frequency.value = 1000;
 
-let trebleFilter = audioCtx.createBiquadFilter();
-trebleFilter.type = "highshelf";
+let treble = audioCtx.createBiquadFilter();
+treble.type = "highshelf";
+treble.frequency.value = 4000;
 
-bassFilter.frequency.value = 100;
-midFilter.frequency.value = 1000;
-trebleFilter.frequency.value = 3000;
+/* EQ */
+document.getElementById("bass").oninput = e => bass.gain.value = e.target.value;
+document.getElementById("mid").oninput = e => mid.gain.value = e.target.value;
+document.getElementById("treble").oninput = e => treble.gain.value = e.target.value;
 
-/* EQ CONTROLS */
-document.getElementById("bass").oninput = e => {
-    bassFilter.gain.value = e.target.value;
-};
-
-document.getElementById("mid").oninput = e => {
-    midFilter.gain.value = e.target.value;
-};
-
-document.getElementById("treble").oninput = e => {
-    trebleFilter.gain.value = e.target.value;
-};
-
-/* FILE LOAD */
+/* FILE */
 fileInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -163,73 +188,64 @@ fileInput.addEventListener("change", (e) => {
     let source = audioCtx.createMediaElementSource(audio);
 
     source
-        .connect(bassFilter)
-        .connect(midFilter)
-        .connect(trebleFilter)
+        .connect(bass)
+        .connect(mid)
+        .connect(treble)
         .connect(analyser)
         .connect(audioCtx.destination);
-
-    analyser.fftSize = 256;
 
     audio.play();
     center.innerText = "CORE 🔊";
 
     createBubble(audio);
-
-    startVisualizer();
+    visualizer();
 });
 
 /* BUBBLE */
 function createBubble(audio) {
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.innerText = bubbles.length + 1;
+    const b = document.createElement("div");
+    b.className = "bubble";
+    b.innerText = bubbles.length + 1;
 
-    container.appendChild(bubble);
-    bubbles.push(bubble);
+    container.appendChild(b);
+    bubbles.push(b);
 
-    let state = {
-        volume: audio.volume
-    };
-
-    mixState.push(state);
-
-    makeDraggable(bubble, audio, state);
-    updatePositions();
+    update();
+    drag(b, audio);
 }
 
 /* POSITION */
-function updatePositions() {
-    const radius = 200;
+function update() {
+    const r = 150;
     const step = (Math.PI * 2) / bubbles.length;
 
-    bubbles.forEach((b, i) => {
-        let angle = i * step;
-        b.style.left = 265 + Math.cos(angle) * radius + "px";
-        b.style.top = 215 + Math.sin(angle) * radius + "px";
+    bubbles.forEach((b,i)=>{
+        let a = i * step;
+        b.style.left = 180 + Math.cos(a)*r + "px";
+        b.style.top = 180 + Math.sin(a)*r + "px";
     });
 }
 
 /* DRAG */
-function makeDraggable(el, audio, state) {
-    let drag = false;
+function drag(el, audio) {
+    let move = false;
 
-    el.onmousedown = () => drag = true;
+    el.onmousedown = () => move = true;
 
-    document.onmousemove = (e) => {
-        if (!drag) return;
+    document.onmousemove = e => {
+        if (!move) return;
         el.style.left = e.pageX + "px";
         el.style.top = e.pageY + "px";
     };
 
     document.onmouseup = () => {
-        drag = false;
+        move = false;
         audio.play();
     };
 }
 
 /* VISUALIZER */
-function startVisualizer() {
+function visualizer() {
     let data = new Uint8Array(analyser.frequencyBinCount);
 
     function draw() {
@@ -237,12 +253,12 @@ function startVisualizer() {
 
         analyser.getByteFrequencyData(data);
 
-        ctx.clearRect(0,0,600,120);
+        ctx.clearRect(0,0,320,120);
 
         for (let i=0;i<data.length;i++) {
             let h = data[i];
             ctx.fillStyle = "#38bdf8";
-            ctx.fillRect(i*5, 120-h, 3, h);
+            ctx.fillRect(i*3, 120-h, 2, h);
         }
     }
 
@@ -251,52 +267,41 @@ function startVisualizer() {
 
 /* SAVE */
 function saveMix() {
-    const data = {
-        eq: {
-            bass: bassFilter.gain.value,
-            mid: midFilter.gain.value,
-            treble: trebleFilter.gain.value
-        },
-        bubbles: bubbles.length
+    const mix = {
+        bass: bass.gain.value,
+        mid: mid.gain.value,
+        treble: treble.gain.value
     };
 
-    localStorage.setItem("song360_mix", JSON.stringify(data));
-
+    localStorage.setItem("song360", JSON.stringify(mix));
     alert("Mix sauvegardé 💾");
 }
 
 /* SHARE */
 function shareMix() {
-    const data = {
-        b: bassFilter.gain.value,
-        m: midFilter.gain.value,
-        t: trebleFilter.gain.value
+    const mix = {
+        b: bass.gain.value,
+        m: mid.gain.value,
+        t: treble.gain.value
     };
 
-    const encoded = btoa(JSON.stringify(data));
-    const url = window.location.origin + "?mix=" + encoded;
+    const url = btoa(JSON.stringify(mix));
+    const link = window.location.origin + "?mix=" + url;
 
-    navigator.clipboard.writeText(url);
-
+    navigator.clipboard.writeText(link);
     alert("Lien copié 🌐");
 }
 
 /* LOAD SHARE */
 window.onload = () => {
-    const params = new URLSearchParams(window.location.search);
-    const mix = params.get("mix");
+    const p = new URLSearchParams(location.search).get("mix");
+    if (!p) return;
 
-    if (mix) {
-        const data = JSON.parse(atob(mix));
+    const d = JSON.parse(atob(p));
 
-        bassFilter.gain.value = data.b;
-        midFilter.gain.value = data.m;
-        trebleFilter.gain.value = data.t;
-
-        document.getElementById("bass").value = data.b;
-        document.getElementById("mid").value = data.m;
-        document.getElementById("treble").value = data.t;
-    }
+    bass.gain.value = d.b;
+    mid.gain.value = d.m;
+    treble.gain.value = d.t;
 };
 </script>
 
