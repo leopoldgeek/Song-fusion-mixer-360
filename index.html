@@ -1,329 +1,171 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<link rel="icon" href="favicon.png" type="image/png">
 <meta charset="UTF-8">
-<title>Song Fusion Mixer 360 PRO</title>
+<title>Song360 Cloud</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 
 <style>
 body {
     margin: 0;
     height: 100vh;
     overflow: hidden;
-    background: radial-gradient(circle at center, #020617, #000);
+    font-family: Arial;
+    background: radial-gradient(circle, #020617, #000);
     color: white;
-    font-family: "Segoe UI", sans-serif;
     text-align: center;
 }
 
-/* TITLE */
-h1 {
-    margin: 6px;
-    font-size: 18px;
-    color: #38bdf8;
-    text-shadow: 0 0 10px #38bdf8;
+#auth {
+    position: absolute;
+    top: 10px;
+    left: 10px;
 }
 
-/* FILE INPUT */
-input[type="file"] {
+input {
     margin: 4px;
-    font-size: 12px;
+    padding: 5px;
 }
 
-/* MAIN */
-#main {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 15px;
-    height: 60vh;
-}
-
-/* MIXER */
-#container {
-    position: relative;
-    width: 420px;
-    height: 420px;
-}
-
-#center {
-    position: absolute;
-    top: 170px;
-    left: 170px;
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: radial-gradient(circle, #fb923c, #ea580c);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    box-shadow: 0 0 20px #f97316;
-    transition: 0.2s;
-}
-
-/* BUBBLES */
-.bubble {
-    position: absolute;
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background: radial-gradient(circle, #38bdf8, #0ea5e9);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: grab;
-    font-size: 12px;
-    box-shadow: 0 0 10px #38bdf8;
-}
-
-/* VISUALIZER */
-#visualizer {
-    width: 320px;
-    height: 120px;
-    background: rgba(255,255,255,0.03);
-    border-radius: 10px;
-}
-
-/* CONTROLS */
-#controls {
-    height: 120px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-}
-
-/* EQ */
-.eq {
-    width: 55px;
-    height: 90px;
-    writing-mode: bt-lr;
-    -webkit-appearance: slider-vertical;
-}
-
-/* BUTTONS */
 button {
     padding: 6px 10px;
-    border-radius: 8px;
-    border: none;
+    margin: 3px;
     background: #38bdf8;
+    border: none;
+    border-radius: 6px;
     cursor: pointer;
+}
+
+#status {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #38bdf8;
 }
 </style>
 </head>
 
 <body>
 
-<h1>🎧 Song Fusion Mixer 360 PRO</h1>
+<h2>🎧 Song360 Cloud</h2>
 
-<input type="file" id="fileInput" accept="audio/*">
+<div id="auth">
+    <input id="email" placeholder="email">
+    <input id="password" type="password" placeholder="password">
 
-<div id="main">
+    <br>
 
-    <div id="container">
-        <div id="center">CORE</div>
-    </div>
+    <button onclick="signUp()">Créer compte</button>
+    <button onclick="signIn()">Se connecter</button>
+    <button onclick="logout()">Logout</button>
 
-    <canvas id="visualizer" width="320" height="120"></canvas>
-
-</div>
-
-<div id="controls">
-    <input type="range" id="bass" class="eq" min="-30" max="30" value="0">
-    <input type="range" id="mid" class="eq" min="-30" max="30" value="0">
-    <input type="range" id="treble" class="eq" min="-30" max="30" value="0">
-
-    <button onclick="saveMix()">💾 Save</button>
-    <button onclick="shareMix()">🌐 Share</button>
+    <div id="status">Non connecté</div>
 </div>
 
 <script>
-const fileInput = document.getElementById("fileInput");
-const container = document.getElementById("container");
-const center = document.getElementById("center");
+/* =========================
+   SUPABASE INIT
+========================= */
+const supabase = window.supabase.createClient(
+  "https://hnpfyxnodhthzxvwfnvl.supabase.co",
+  "sb_publishable_pJJjozADUUOFcBp3uut0dg_yH2SVm8V"
+);
 
-const canvas = document.getElementById("visualizer");
-const ctx = canvas.getContext("2d");
+let user = null;
 
-let bubbles = [];
-let bubbleCount = 0;
+/* =========================
+   AUTH
+========================= */
+async function signUp() {
+    const email = emailInput().value;
+    const password = passInput().value;
 
-/* AUDIO CONTEXT */
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-const analyser = audioCtx.createAnalyser();
-analyser.fftSize = 256;
+    const { data, error } = await supabase.auth.signUp({
+        email,
+        password
+    });
 
-/* EQ */
-const bass = audioCtx.createBiquadFilter();
-bass.type = "lowshelf";
-bass.frequency.value = 120;
+    console.log(data, error);
+    alert("Compte créé (check email si confirmé)");
+}
 
-const mid = audioCtx.createBiquadFilter();
-mid.type = "peaking";
-mid.frequency.value = 1000;
+async function signIn() {
+    const email = emailInput().value;
+    const password = passInput().value;
 
-const treble = audioCtx.createBiquadFilter();
-treble.type = "highshelf";
-treble.frequency.value = 4000;
+    const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+    });
 
-/* SLIDERS */
-document.getElementById("bass").oninput = e => bass.gain.value = e.target.value;
-document.getElementById("mid").oninput = e => mid.gain.value = e.target.value;
-document.getElementById("treble").oninput = e => treble.gain.value = e.target.value;
+    if (error) return alert(error.message);
 
-/* FILE LOAD */
-fileInput.addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    user = data.user;
+    updateStatus();
+}
 
-    await audioCtx.resume();
+async function logout() {
+    await supabase.auth.signOut();
+    user = null;
+    updateStatus();
+}
 
-    const audio = new Audio(URL.createObjectURL(file));
-    audio.loop = true;
-
-    const source = audioCtx.createMediaElementSource(audio);
-
-    source
-        .connect(bass)
-        .connect(mid)
-        .connect(treble)
-        .connect(analyser)
-        .connect(audioCtx.destination);
-
-    audio.play();
-    center.innerText = "CORE 🔊";
-
-    createBubble(audio);
-    startVisualizer();
+/* =========================
+   SESSION CHECK
+========================= */
+supabase.auth.getSession().then(({ data }) => {
+    user = data.session?.user || null;
+    updateStatus();
 });
 
-/* BUBBLES (ton système original) */
-function createBubble(audio) {
-    const b = document.createElement("div");
-    b.className = "bubble";
-    b.innerText = ++bubbleCount;
-
-    container.appendChild(b);
-    bubbles.push(b);
-
-    updatePositions();
-    makeDraggable(b, audio);
+/* =========================
+   STATUS UI
+========================= */
+function updateStatus() {
+    document.getElementById("status").innerText =
+        user ? "Connecté: " + user.email : "Non connecté";
 }
 
-function updatePositions() {
-    const radius = 150;
-    const step = (Math.PI * 2) / bubbles.length;
+/* =========================
+   MIX CLOUD SAVE
+========================= */
+async function saveMixCloud(mixData) {
+    if (!user) return alert("connecte toi d'abord");
 
-    bubbles.forEach((b,i)=>{
-        let a = i * step;
-        b.style.left = 180 + Math.cos(a)*radius + "px";
-        b.style.top = 180 + Math.sin(a)*radius + "px";
-    });
-}
-
-/* DRAG + FUSION */
-function makeDraggable(el, audio) {
-    let drag = false;
-
-    el.onmousedown = () => drag = true;
-
-    document.onmousemove = e => {
-        if (!drag) return;
-        el.style.left = e.pageX + "px";
-        el.style.top = e.pageY + "px";
-    };
-
-    document.onmouseup = () => {
-        drag = false;
-
-        if (isColliding(el, center)) {
-            audio.play();
-
-            el.remove();
-            bubbles = bubbles.filter(b => b !== el);
-            updatePositions();
-
-            center.style.transform = "scale(1.2)";
-            setTimeout(() => center.style.transform = "scale(1)", 150);
+    await supabase.from("mixes").insert([
+        {
+            user_id: user.id,
+            data: mixData
         }
-    };
+    ]);
+
+    alert("Mix sauvegardé ☁️");
 }
 
-function isColliding(a,b){
-    const r1 = a.getBoundingClientRect();
-    const r2 = b.getBoundingClientRect();
+/* =========================
+   LOAD MIX CLOUD
+========================= */
+async function loadMyMixes() {
+    if (!user) return;
 
-    return !(r1.right < r2.left ||
-             r1.left > r2.right ||
-             r1.bottom < r2.top ||
-             r1.top > r2.bottom);
+    const { data } = await supabase
+        .from("mixes")
+        .select("*")
+        .eq("user_id", user.id);
+
+    console.log("mes mixes:", data);
 }
 
-/* VISUALIZER */
-function startVisualizer(){
-    const data = new Uint8Array(analyser.frequencyBinCount);
-
-    function draw(){
-        requestAnimationFrame(draw);
-
-        analyser.getByteFrequencyData(data);
-
-        ctx.clearRect(0,0,320,120);
-
-        for(let i=0;i<data.length;i++){
-            let h = data[i];
-            ctx.fillStyle = "#38bdf8";
-            ctx.fillRect(i*3,120-h,2,h);
-        }
-    }
-
-    draw();
+/* =========================
+   HELPERS
+========================= */
+function emailInput() {
+    return document.getElementById("email");
 }
 
-/* SAVE */
-function saveMix(){
-    const mix = {
-        bass: bass.gain.value,
-        mid: mid.gain.value,
-        treble: treble.gain.value,
-        bubbles: bubbles.length
-    };
-
-    localStorage.setItem("song360_mix", JSON.stringify(mix));
-    alert("💾 Mix sauvegardé !");
+function passInput() {
+    return document.getElementById("password");
 }
-
-/* SHARE */
-function shareMix(){
-    const mix = {
-        b: bass.gain.value,
-        m: mid.gain.value,
-        t: treble.gain.value
-    };
-
-    const url = btoa(JSON.stringify(mix));
-    const link = window.location.origin + "?mix=" + url;
-
-    navigator.clipboard.writeText(link);
-    alert("🌐 Lien copié !");
-}
-
-/* LOAD SHARE */
-window.onload = () => {
-    const mix = new URLSearchParams(location.search).get("mix");
-    if (!mix) return;
-
-    const data = JSON.parse(atob(mix));
-
-    bass.gain.value = data.b;
-    mid.gain.value = data.m;
-    treble.gain.value = data.t;
-
-    document.getElementById("bass").value = data.b;
-    document.getElementById("mid").value = data.m;
-    document.getElementById("treble").value = data.t;
-};
 </script>
 
 </body>
