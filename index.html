@@ -2,45 +2,82 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Song360 Cloud</title>
-
+<title>Song360 Cloud App</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 
 <style>
-body {
-    margin: 0;
-    height: 100vh;
-    overflow: hidden;
-    font-family: Arial;
-    background: radial-gradient(circle, #020617, #000);
-    color: white;
-    text-align: center;
+body{
+    margin:0;
+    background:#020617;
+    color:white;
+    font-family:Arial;
+    text-align:center;
 }
 
-#auth {
-    position: absolute;
-    top: 10px;
-    left: 10px;
+/* AUTH */
+#auth{
+    position:absolute;
+    top:10px;
+    left:10px;
 }
 
-input {
-    margin: 4px;
-    padding: 5px;
+input,button{
+    margin:3px;
+    padding:6px;
 }
 
-button {
-    padding: 6px 10px;
-    margin: 3px;
-    background: #38bdf8;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
+/* MIXER */
+#container{
+    position:relative;
+    width:400px;
+    height:400px;
+    margin:auto;
 }
 
-#status {
-    margin-top: 10px;
-    font-size: 12px;
-    color: #38bdf8;
+#center{
+    position:absolute;
+    top:160px;
+    left:160px;
+    width:80px;
+    height:80px;
+    border-radius:50%;
+    background:orange;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+
+/* BULLES */
+.bubble{
+    position:absolute;
+    width:60px;
+    height:60px;
+    border-radius:50%;
+    background:#38bdf8;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:grab;
+    font-size:10px;
+}
+
+/* LIBRARY */
+#library{
+    position:fixed;
+    right:10px;
+    top:50px;
+    width:250px;
+    height:80vh;
+    overflow:auto;
+    border-left:1px solid #333;
+    padding:10px;
+}
+
+.mixItem{
+    border:1px solid #444;
+    margin:5px;
+    padding:5px;
+    cursor:pointer;
 }
 </style>
 </head>
@@ -50,121 +87,242 @@ button {
 <h2>🎧 Song360 Cloud</h2>
 
 <div id="auth">
-    <input id="email" placeholder="email">
-    <input id="password" type="password" placeholder="password">
+<input id="email" placeholder="email">
+<input id="password" type="password"><br>
 
-    <br>
+<button onclick="signUp()">Créer</button>
+<button onclick="signIn()">Login</button>
+<button onclick="logout()">Logout</button>
 
-    <button onclick="signUp()">Créer compte</button>
-    <button onclick="signIn()">Se connecter</button>
-    <button onclick="logout()">Logout</button>
+<br>
 
-    <div id="status">Non connecté</div>
+<button onclick="saveMix(true)">🌐 Public</button>
+<button onclick="saveMix(false)">🔒 Privé</button>
+
+<button onclick="loadMyMixes()">📚 Mes Mix</button>
+
+<div id="status"></div>
 </div>
 
+<input type="file" id="fileInput" accept="audio/*">
+
+<div id="container">
+<div id="center">CORE</div>
+</div>
+
+<div id="library"></div>
+
 <script>
-/* =========================
-   SUPABASE INIT
-========================= */
+/* ================= SUPABASE ================= */
 const supabase = window.supabase.createClient(
-  "https://hnpfyxnodhthzxvwfnvl.supabase.co",
-  "sb_publishable_pJJjozADUUOFcBp3uut0dg_yH2SVm8V"
+ "https://hnpfyxnodhthzxvwfnvl.supabase.co",
+ "sb_publishable_pJJjozADUUOFcBp3uut0dg_yH2SVm8V"
 );
 
-let user = null;
+let user=null;
+let bubbles=[];
 
-/* =========================
-   AUTH
-========================= */
-async function signUp() {
-    const email = emailInput().value;
-    const password = passInput().value;
-
-    const { data, error } = await supabase.auth.signUp({
-        email,
-        password
-    });
-
-    console.log(data, error);
-    alert("Compte créé (check email si confirmé)");
+/* ================= AUTH ================= */
+async function signUp(){
+ await supabase.auth.signUp({
+  email:email.value,
+  password:password.value
+ });
+ alert("Compte créé");
 }
 
-async function signIn() {
-    const email = emailInput().value;
-    const password = passInput().value;
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-    });
-
-    if (error) return alert(error.message);
-
-    user = data.user;
-    updateStatus();
+async function signIn(){
+ const {data,error}=await supabase.auth.signInWithPassword({
+  email:email.value,
+  password:password.value
+ });
+ if(error)return alert(error.message);
+ user=data.user;
+ updateStatus();
 }
 
-async function logout() {
-    await supabase.auth.signOut();
-    user = null;
-    updateStatus();
+async function logout(){
+ await supabase.auth.signOut();
+ user=null;
+ updateStatus();
 }
 
-/* =========================
-   SESSION CHECK
-========================= */
-supabase.auth.getSession().then(({ data }) => {
-    user = data.session?.user || null;
-    updateStatus();
+supabase.auth.getSession().then(({data})=>{
+ user=data.session?.user;
+ updateStatus();
 });
 
-/* =========================
-   STATUS UI
-========================= */
-function updateStatus() {
-    document.getElementById("status").innerText =
-        user ? "Connecté: " + user.email : "Non connecté";
+function updateStatus(){
+ status.innerText=user?"Connecté: "+user.email:"Non connecté";
 }
 
-/* =========================
-   MIX CLOUD SAVE
-========================= */
-async function saveMixCloud(mixData) {
-    if (!user) return alert("connecte toi d'abord");
+/* ================= MIXER ================= */
+const container=document.getElementById("container");
+const center=document.getElementById("center");
+const fileInput=document.getElementById("fileInput");
 
-    await supabase.from("mixes").insert([
-        {
-            user_id: user.id,
-            data: mixData
-        }
-    ]);
+/* UPLOAD AUDIO */
+fileInput.addEventListener("change", async e=>{
+ const file=e.target.files[0];
+ if(!file)return;
 
-    alert("Mix sauvegardé ☁️");
+ const path=Date.now()+"_"+file.name;
+
+ await supabase.storage.from("songs").upload(path,file);
+
+ const {data}=supabase.storage.from("songs").getPublicUrl(path);
+
+ const audio=new Audio(data.publicUrl);
+ audio.loop=true;
+
+ createBubble(audio,data.publicUrl,file.name);
+});
+
+/* CREATE BUBBLE */
+function createBubble(audio,url,name){
+ const b=document.createElement("div");
+ b.className="bubble";
+ b.innerText=name.slice(0,6);
+
+ container.appendChild(b);
+
+ const obj={el:b,audio,url,name,x:180,y:180};
+ bubbles.push(obj);
+
+ updatePos();
+ drag(obj);
 }
 
-/* =========================
-   LOAD MIX CLOUD
-========================= */
-async function loadMyMixes() {
-    if (!user) return;
+/* POSITION */
+function updatePos(){
+ const r=140;
+ const step=(Math.PI*2)/bubbles.length;
 
-    const { data } = await supabase
-        .from("mixes")
-        .select("*")
-        .eq("user_id", user.id);
-
-    console.log("mes mixes:", data);
+ bubbles.forEach((b,i)=>{
+  let a=i*step;
+  b.x=180+Math.cos(a)*r;
+  b.y=180+Math.sin(a)*r;
+  b.el.style.left=b.x+"px";
+  b.el.style.top=b.y+"px";
+ });
 }
 
-/* =========================
-   HELPERS
-========================= */
-function emailInput() {
-    return document.getElementById("email");
+/* DRAG */
+function drag(b){
+ let move=false;
+
+ b.el.onmousedown=()=>move=true;
+
+ document.onmousemove=e=>{
+  if(!move)return;
+  b.x=e.pageX;
+  b.y=e.pageY;
+  b.el.style.left=b.x+"px";
+  b.el.style.top=b.y+"px";
+ };
+
+ document.onmouseup=()=>{
+  move=false;
+  if(collide(b.el,center)) b.audio.play();
+ };
 }
 
-function passInput() {
-    return document.getElementById("password");
+function collide(a,b){
+ const r1=a.getBoundingClientRect();
+ const r2=b.getBoundingClientRect();
+ return !(r1.right<r2.left||r1.left>r2.right||r1.bottom<r2.top||r1.top>r2.bottom);
+}
+
+/* ================= SAVE ================= */
+async function saveMix(isPublic){
+ if(!user)return alert("connecte toi");
+
+ const dataMix=bubbles.map(b=>({
+  url:b.url,
+  name:b.name,
+  x:b.x,
+  y:b.y
+ }));
+
+ const {data}=await supabase
+  .from("mixes")
+  .insert([{user_id:user.id,is_public:isPublic,data:dataMix}])
+  .select();
+
+ const id=data[0].id;
+
+ if(isPublic){
+  const link=location.origin+"?mix="+id;
+  navigator.clipboard.writeText(link);
+  alert("Lien copié !");
+ }else{
+  alert("Mix privé sauvegardé");
+ }
+}
+
+/* ================= LOAD BY LINK ================= */
+window.onload=async()=>{
+ const id=new URLSearchParams(location.search).get("mix");
+ if(!id)return;
+
+ const {data}=await supabase
+  .from("mixes")
+  .select("*")
+  .eq("id",id)
+  .eq("is_public",true)
+  .single();
+
+ if(!data)return alert("Mix introuvable");
+
+ loadMix(data.data);
+};
+
+/* LOAD MIX */
+function loadMix(data){
+ container.innerHTML='<div id="center">CORE</div>';
+ bubbles=[];
+
+ data.forEach(item=>{
+  const audio=new Audio(item.url);
+  audio.loop=true;
+
+  createBubble(audio,item.url,item.name);
+ });
+}
+
+/* ================= LIBRARY ================= */
+async function loadMyMixes(){
+ if(!user)return alert("connecte toi");
+
+ const {data}=await supabase
+  .from("mixes")
+  .select("*")
+  .eq("user_id",user.id);
+
+ library.innerHTML="";
+
+ data.forEach(m=>{
+  const div=document.createElement("div");
+  div.className="mixItem";
+
+  div.innerHTML=`
+  ${m.is_public?"🌐":"🔒"} Mix
+  <br>
+  <button onclick="playMix('${m.id}')">▶</button>
+  `;
+
+  library.appendChild(div);
+ });
+}
+
+async function playMix(id){
+ const {data}=await supabase
+  .from("mixes")
+  .select("*")
+  .eq("id",id)
+  .single();
+
+ loadMix(data.data);
 }
 </script>
 
