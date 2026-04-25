@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Fusion Mixer</title>
+
+<style>
+body{margin:0;background:#020617;color:white;text-align:center;font-family:Arial;}
+#container{position:relative;width:420px;height:420px;margin:auto;}
+#center{position:absolute;top:170px;left:170px;width:80px;height:80px;border-radius:50%;background:orange;display:flex;align-items:center;justify-content:center;}
+.bubble{position:absolute;width:60px;height:60px;border-radius:50%;background:#38bdf8;display:flex;align-items:center;justify-content:center;cursor:grab;font-size:10px;}
+button{margin:5px;padding:6px;}
+</style>
+</head>
+
+<body>
+
+<h2>🎧 Fusion Mixer</h2>
+
+<input type="file" id="fileInput" accept="audio/*">
+<br>
+<button onclick="sendToCloud()">☁️ Envoyer au Cloud</button>
+
+<div id="container">
+<div id="center">CORE</div>
+</div>
+
+<script>
+const container=document.getElementById("container");
+const center=document.getElementById("center");
+
+let bubbles=[];
+
+/* LOAD AUDIO LOCAL */
+fileInput.addEventListener("change",e=>{
+    const file=e.target.files[0];
+    if(!file)return;
+
+    const url=URL.createObjectURL(file);
+    const audio=new Audio(url);
+    audio.loop=true;
+
+    createBubble(audio,file.name);
+});
+
+/* CREATE BUBBLE */
+function createBubble(audio,name){
+    const el=document.createElement("div");
+    el.className="bubble";
+    el.innerText=name.slice(0,5);
+
+    container.appendChild(el);
+
+    const obj={el,audio,name,x:200,y:200};
+    bubbles.push(obj);
+
+    position();
+    drag(obj);
+}
+
+/* POSITION */
+function position(){
+    const r=150;
+    const step=(Math.PI*2)/bubbles.length;
+
+    bubbles.forEach((b,i)=>{
+        const a=i*step;
+        b.x=180+Math.cos(a)*r;
+        b.y=180+Math.sin(a)*r;
+        b.el.style.left=b.x+"px";
+        b.el.style.top=b.y+"px";
+    });
+}
+
+/* DRAG + PLAY */
+function drag(b){
+    let move=false;
+
+    b.el.onmousedown=()=>move=true;
+
+    document.onmousemove=e=>{
+        if(!move)return;
+        const rect=container.getBoundingClientRect();
+        b.x=e.clientX-rect.left-30;
+        b.y=e.clientY-rect.top-30;
+        b.el.style.left=b.x+"px";
+        b.el.style.top=b.y+"px";
+    };
+
+    document.onmouseup=()=>{
+        move=false;
+        if(collide(b.el,center)){
+            b.audio.currentTime=0;
+            b.audio.play();
+        }
+    };
+}
+
+function collide(a,b){
+    const r1=a.getBoundingClientRect();
+    const r2=b.getBoundingClientRect();
+    return !(r1.right<r2.left||r1.left>r2.right||r1.bottom<r2.top||r1.top>r2.bottom);
+}
+
+/* SEND TO CLOUD */
+function sendToCloud(){
+    if(bubbles.length===0)return alert("aucun son");
+
+    const mix=bubbles.map(b=>({
+        name:b.name
+    }));
+
+    localStorage.setItem("mix_temp",JSON.stringify(mix));
+
+    window.location.href="index.html";
+}
+</script>
+
+</body>
+</html>
