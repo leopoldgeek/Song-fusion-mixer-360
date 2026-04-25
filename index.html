@@ -1,75 +1,217 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Cloud</title>
+<title>Song360 One Page</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body{background:#020617;color:white;text-align:center;font-family:Arial;}
-button{margin:10px;padding:8px;}
-#list{margin-top:20px;}
+body{
+ margin:0;
+ background:#020617;
+ color:white;
+ font-family:Arial;
+ text-align:center;
+ overflow:hidden;
+}
+
+.hidden{display:none;}
+
+button,input{margin:5px;padding:6px;}
+
+#container{
+ position:relative;
+ width:420px;
+ height:420px;
+ margin:auto;
+}
+
+#center{
+ position:absolute;
+ top:170px;
+ left:170px;
+ width:80px;
+ height:80px;
+ border-radius:50%;
+ background:orange;
+}
+
+.bubble{
+ position:absolute;
+ width:60px;
+ height:60px;
+ border-radius:50%;
+ background:#38bdf8;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ cursor:grab;
+ font-size:10px;
+}
+
+/* CLOUD PANEL */
+#cloudPanel{
+ position:absolute;
+ top:0;
+ left:0;
+ width:100%;
+ height:100%;
+ background:#020617;
+ display:none;
+ padding-top:20px;
+}
+
+.item{
+ background:#111827;
+ margin:10px auto;
+ width:250px;
+ padding:10px;
+ border-radius:8px;
+ cursor:pointer;
+}
 </style>
 </head>
 
 <body>
 
-<h2>☁️ Cloud</h2>
+<h2>🎧 Song360 ONE PAGE</h2>
 
-<button onclick="goMixer()">🎧 Mixer</button>
-
-<br><br>
-
-<input type="file" id="fileInput">
+<button onclick="showMixer()">🎧 Mixer</button>
+<button onclick="showCloud()">☁️ Cloud</button>
 
 <br>
 
-<button onclick="upload()">⬆ Upload</button>
+<input type="file" id="fileInput" accept="audio/*">
 
-<div id="list"></div>
+<!-- ================= MIXER ================= -->
+<div id="mixer">
+<div id="container">
+<div id="center"></div>
+</div>
+</div>
+
+<!-- ================= CLOUD ================= -->
+<div id="cloudPanel">
+<h3>☁️ Cloud</h3>
+
+<button onclick="saveMix()">💾 Save Mix</button>
+
+<div id="library"></div>
+</div>
 
 <script>
-const supabase = supabase.createClient(
+
+/* ================= SUPABASE ================= */
+const supabase = window.supabase.createClient(
  "https://hnpfyxnodhthzxvwfnvl.supabase.co",
  "sb_publishable_pJJjozADUUOFcBp3uut0dg_yH2SVm8V"
 );
 
+let bubbles=[];
 let files=[];
 
-async function upload(){
- const file=fileInput.files[0];
- if(!file)return alert("no file");
-
- const name=Date.now()+"_"+file.name;
-
- const {error}=await supabase.storage
- .from("songs")
- .upload(name,file);
-
- if(error)return alert(error.message);
-
- const {data}=supabase.storage
- .from("songs")
- .getPublicUrl(name);
-
- files.push(data.publicUrl);
-
- render();
+/* ================= UI ================= */
+function showMixer(){
+ document.getElementById("mixer").style.display="block";
+ document.getElementById("cloudPanel").style.display="none";
 }
 
-function render(){
- list.innerHTML="";
- files.forEach(f=>{
- const div=document.createElement("div");
- div.innerText="🎵 audio";
- div.onclick=()=>new Audio(f).play();
- list.appendChild(div);
+function showCloud(){
+ document.getElementById("mixer").style.display="none";
+ document.getElementById("cloudPanel").style.display="block";
+ loadLibrary();
+}
+
+/* ================= AUDIO ================= */
+fileInput.onchange=(e)=>{
+ const file=e.target.files[0];
+ if(!file)return;
+
+ const url=URL.createObjectURL(file);
+ const audio=new Audio(url);
+ audio.loop=true;
+
+ const el=document.createElement("div");
+ el.className="bubble";
+ el.innerText="🎵";
+
+ container.appendChild(el);
+
+ bubbles.push({el,audio,x:200,y:200});
+
+ update();
+ drag(bubbles[bubbles.length-1]);
+};
+
+function update(){
+ bubbles.forEach((b,i)=>{
+ b.x=80+i*70;
+ b.y=180;
+ b.el.style.left=b.x+"px";
+ b.el.style.top=b.y+"px";
  });
 }
 
-function goMixer(){
- window.location.href="fusion_mixer.html";
+function drag(b){
+ let move=false;
+
+ b.el.onmousedown=()=>move=true;
+
+ document.onmousemove=e=>{
+ if(!move)return;
+
+ const rect=container.getBoundingClientRect();
+
+ b.x=e.clientX-rect.left-30;
+ b.y=e.clientY-rect.top-30;
+
+ b.el.style.left=b.x+"px";
+ b.el.style.top=b.y+"px";
+ };
+
+ document.onmouseup=()=>{
+ move=false;
+ };
 }
+
+/* ================= CLOUD UPLOAD ================= */
+async function saveMix(){
+ const mix=bubbles.map(b=>({name:"sound"}));
+
+ const {error}=await supabase
+ .from("mixes")
+ .insert([{
+ is_public:true,
+ data:mix
+ }]);
+
+ if(error)return alert(error.message);
+
+ alert("💾 Mix sauvegardé !");
+ loadLibrary();
+}
+
+/* ================= LOAD LIBRARY ================= */
+async function loadLibrary(){
+ const {data}=await supabase
+ .from("mixes")
+ .select("*");
+
+ library.innerHTML="";
+
+ data.forEach(m=>{
+ const div=document.createElement("div");
+ div.className="item";
+ div.innerText="🎧 Mix";
+
+ div.onclick=()=>{
+ alert("Mix chargé !");
+ };
+
+ library.appendChild(div);
+ });
+}
+
 </script>
 
 </body>
