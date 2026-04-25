@@ -7,38 +7,29 @@
 
 <style>
 body{
-    margin:0;
-    background:#020617;
-    color:white;
-    font-family:Arial;
-    text-align:center;
+ margin:0;
+ background:#020617;
+ color:white;
+ font-family:Arial;
+ text-align:center;
 }
 
-#panel{
-    padding:10px;
+button,input{
+ margin:5px;
+ padding:6px;
 }
 
-input,button{
-    margin:4px;
-    padding:6px;
-}
-
-/* LIBRARY */
 #library{
-    margin-top:20px;
+ margin-top:20px;
 }
 
-.mix{
-    background:#111827;
-    margin:8px auto;
-    padding:10px;
-    width:250px;
-    border-radius:8px;
-    cursor:pointer;
-}
-
-.mix:hover{
-    background:#1f2937;
+.item{
+ background:#111827;
+ margin:8px auto;
+ padding:10px;
+ width:250px;
+ border-radius:8px;
+ cursor:pointer;
 }
 </style>
 </head>
@@ -47,21 +38,17 @@ input,button{
 
 <h2>☁️ Song360 Cloud</h2>
 
-<div id="panel">
-<input id="email" placeholder="email">
-<input id="password" type="password"><br>
-
-<button onclick="signup()">Créer compte</button>
-<button onclick="login()">Connexion</button>
-<button onclick="logout()">Logout</button>
+<button onclick="goMixer()">🎧 Mixer</button>
 
 <br><br>
 
-<button onclick="saveMix(true)">🌐 Public</button>
-<button onclick="saveMix(false)">🔒 Privé</button>
+<input type="file" id="fileInput" accept="audio/*">
+
+<br>
+
+<button onclick="saveMix()">💾 Save Mix</button>
 
 <p id="status">Non connecté</p>
-</div>
 
 <h3>📚 Bibliothèque</h3>
 <div id="library"></div>
@@ -75,47 +62,45 @@ const supabase = window.supabase.createClient(
 let user=null;
 let mix=JSON.parse(localStorage.getItem("mix_temp")||"[]");
 
-/* AUTH */
-async function signup(){
- const {error}=await supabase.auth.signUp({
-  email:email.value,
-  password:password.value
- });
+/* AUTH SIMPLE */
+supabase.auth.getSession().then(({data})=>{
+ user=data.session?.user;
+ status.innerText=user?"Connecté":"Non connecté";
+ if(user)loadLibrary();
+});
 
- alert(error?error.message:"Compte créé !");
-}
+/* UPLOAD AUDIO */
+fileInput.addEventListener("change",async e=>{
+ const file=e.target.files[0];
+ if(!file)return;
 
-async function login(){
- const {data,error}=await supabase.auth.signInWithPassword({
-  email:email.value,
-  password:password.value
- });
+ const path=Date.now()+"_"+file.name;
+
+ const {error}=await supabase.storage
+ .from("songs")
+ .upload(path,file);
 
  if(error)return alert(error.message);
 
- user=data.user;
- status.innerText="Connecté : "+user.email;
+ const {data}=supabase.storage
+ .from("songs")
+ .getPublicUrl(path);
 
- loadLibrary(); // 🔥 IMPORTANT
-}
+ mix.push({url:data.publicUrl,name:file.name});
 
-async function logout(){
- await supabase.auth.signOut();
- user=null;
- library.innerHTML="";
- status.innerText="Déconnecté";
-}
+ alert("audio uploadé");
+});
 
 /* SAVE MIX */
-async function saveMix(isPublic){
+async function saveMix(){
  if(!user)return alert("connecte toi");
 
  const {error}=await supabase
  .from("mixes")
  .insert([{
-  user_id:user.id,
-  is_public:isPublic,
-  data:mix
+ user_id:user.id,
+ is_public:true,
+ data:mix
  }]);
 
  if(error)return alert(error.message);
@@ -124,47 +109,33 @@ async function saveMix(isPublic){
  loadLibrary();
 }
 
-/* 📚 LOAD USER LIBRARY */
+/* LIBRARY */
 async function loadLibrary(){
- if(!user)return;
-
- const {data,error}=await supabase
+ const {data}=await supabase
  .from("mixes")
  .select("*")
  .eq("user_id",user.id);
 
- if(error)return console.log(error);
-
  library.innerHTML="";
 
  data.forEach(m=>{
-  const div=document.createElement("div");
-  div.className="mix";
+ const div=document.createElement("div");
+ div.className="item";
+ div.innerText="🎧 Mix";
 
-  div.innerHTML=`
-   ${m.is_public?"🌐 Public":"🔒 Privé"}
-   <br>
-   ▶ ouvrir
-  `;
+ div.onclick=()=>{
+ localStorage.setItem("mix_temp",JSON.stringify(m.data));
+ alert("Mix chargé");
+ };
 
-  div.onclick=()=>{
-   localStorage.setItem("mix_temp",JSON.stringify(m.data));
-   alert("Mix chargé dans le mixer !");
-  };
-
-  library.appendChild(div);
+ library.appendChild(div);
  });
 }
 
-/* auto restore session */
-supabase.auth.getSession().then(({data})=>{
- user=data.session?.user;
-
- if(user){
-  status.innerText="Connecté : "+user.email;
-  loadLibrary();
- }
-});
+/* NAV */
+function goMixer(){
+ window.location.href="fusion_mixer.html";
+}
 </script>
 
 </body>
