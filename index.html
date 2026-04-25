@@ -3,7 +3,7 @@
 <head>
 <link rel="icon" href="favicon.png" type="image/png">
 <meta charset="UTF-8">
-<title>Song Fusion Mixer 360</title>
+<title>Song Fusion Mixer 360 PRO</title>
 
 <style>
 body {
@@ -14,26 +14,20 @@ body {
     text-align: center;
 }
 
-/* TITRE */
 h1 {
     margin: 15px;
     font-weight: 300;
-    letter-spacing: 2px;
     color: #38bdf8;
     text-shadow: 0 0 10px #38bdf8;
 }
 
-/* ZONE PRINCIPALE */
 #container {
     position: relative;
     width: 600px;
     height: 500px;
     margin: auto;
-    border-radius: 20px;
-    box-shadow: inset 0 0 40px rgba(56,189,248,0.1);
 }
 
-/* CENTRE */
 #center {
     position: absolute;
     top: 215px;
@@ -46,19 +40,10 @@ h1 {
     align-items: center;
     justify-content: center;
     font-weight: bold;
-    z-index: 10;
-    box-shadow: 0 0 20px #f97316, 0 0 40px #f97316;
-    animation: pulse 2s infinite;
+    box-shadow: 0 0 30px #f97316;
+    transition: 0.2s;
 }
 
-/* PULSE CENTRE */
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.08); }
-    100% { transform: scale(1); }
-}
-
-/* BULLES */
 .bubble {
     position: absolute;
     width: 70px;
@@ -69,193 +54,250 @@ h1 {
     align-items: center;
     justify-content: center;
     cursor: grab;
-    user-select: none;
     box-shadow: 0 0 15px #38bdf8;
-    transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.bubble:hover {
-    transform: scale(1.1);
-    box-shadow: 0 0 25px #38bdf8;
-}
-
-/* ZONE CONTROLES */
 #controls {
     width: 600px;
-    height: 140px;
     margin: auto;
     display: flex;
     justify-content: center;
-    align-items: flex-end;
-    gap: 12px;
-    border-top: 1px solid rgba(56,189,248,0.3);
-    backdrop-filter: blur(10px);
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
-/* SLIDERS */
 .slider {
+    width: 80px;
+}
+
+.eq {
+    width: 80px;
     writing-mode: bt-lr;
     -webkit-appearance: slider-vertical;
-    width: 20px;
-    height: 110px;
-    background: transparent;
-    filter: drop-shadow(0 0 5px #22c55e);
 }
 
-/* INPUT FILE */
-input[type="file"] {
-    margin: 10px;
-    color: #38bdf8;
+button {
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    background: #38bdf8;
+    cursor: pointer;
 }
 
-/* PETIT GLOW GLOBAL */
-body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background: radial-gradient(circle at center, rgba(56,189,248,0.05), transparent);
-    pointer-events: none;
+#visualizer {
+    margin-top: 10px;
 }
 </style>
 </head>
 
 <body>
 
-<h1>🎧Song Fusion Mixer 360</h1>
+<h1>🎧 Song Fusion Mixer 360 PRO</h1>
 
-<input type="file" id="fileInput" accept="audio/mp3">
+<input type="file" id="fileInput" accept="audio/*">
 
 <div id="container">
     <div id="center">CORE</div>
 </div>
 
-<div id="controls"></div>
+<canvas id="visualizer" width="600" height="120"></canvas>
+
+<div id="controls">
+    <input type="range" id="bass" class="eq" min="-30" max="30" value="0">
+    <input type="range" id="mid" class="eq" min="-30" max="30" value="0">
+    <input type="range" id="treble" class="eq" min="-30" max="30" value="0">
+
+    <button onclick="saveMix()">💾 Save</button>
+    <button onclick="shareMix()">🌐 Share</button>
+</div>
 
 <script>
 const fileInput = document.getElementById("fileInput");
 const container = document.getElementById("container");
-const controls = document.getElementById("controls");
 const center = document.getElementById("center");
 
-let baseAudio = null;
-let bubbles = [];
-let bubbleCount = 0;
+const canvas = document.getElementById("visualizer");
+const ctx = canvas.getContext("2d");
 
+let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let analyser = audioCtx.createAnalyser();
+
+let bubbles = [];
+let audioNodes = [];
+let mixState = [];
+
+let bassFilter = audioCtx.createBiquadFilter();
+bassFilter.type = "lowshelf";
+
+let midFilter = audioCtx.createBiquadFilter();
+midFilter.type = "peaking";
+
+let trebleFilter = audioCtx.createBiquadFilter();
+trebleFilter.type = "highshelf";
+
+bassFilter.frequency.value = 100;
+midFilter.frequency.value = 1000;
+trebleFilter.frequency.value = 3000;
+
+/* EQ CONTROLS */
+document.getElementById("bass").oninput = e => {
+    bassFilter.gain.value = e.target.value;
+};
+
+document.getElementById("mid").oninput = e => {
+    midFilter.gain.value = e.target.value;
+};
+
+document.getElementById("treble").oninput = e => {
+    trebleFilter.gain.value = e.target.value;
+};
+
+/* FILE LOAD */
 fileInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     const audio = new Audio(URL.createObjectURL(file));
     audio.loop = true;
-    audio.volume = 1;
 
-    createSlider(audio);
+    let source = audioCtx.createMediaElementSource(audio);
 
-    if (!baseAudio) {
-        baseAudio = audio;
-        baseAudio.play();
-        center.innerText = "CORE 🔊";
-        return;
-    }
+    source
+        .connect(bassFilter)
+        .connect(midFilter)
+        .connect(trebleFilter)
+        .connect(analyser)
+        .connect(audioCtx.destination);
+
+    analyser.fftSize = 256;
+
+    audio.play();
+    center.innerText = "CORE 🔊";
 
     createBubble(audio);
+
+    startVisualizer();
 });
 
-function createSlider(audio) {
-    const slider = document.createElement("input");
-    slider.type = "range";
-    slider.min = 0;
-    slider.max = 1;
-    slider.step = 0.01;
-    slider.value = 1;
-    slider.className = "slider";
-
-    slider.oninput = () => {
-        audio.volume = slider.value;
-    };
-
-    controls.appendChild(slider);
-}
-
+/* BUBBLE */
 function createBubble(audio) {
     const bubble = document.createElement("div");
     bubble.className = "bubble";
-    bubble.innerText = ++bubbleCount;
+    bubble.innerText = bubbles.length + 1;
 
     container.appendChild(bubble);
     bubbles.push(bubble);
 
-    updateBubblePositions();
-    makeDraggable(bubble, audio);
+    let state = {
+        volume: audio.volume
+    };
+
+    mixState.push(state);
+
+    makeDraggable(bubble, audio, state);
+    updatePositions();
 }
 
-function updateBubblePositions() {
+/* POSITION */
+function updatePositions() {
     const radius = 200;
-    const angleStep = (2 * Math.PI) / bubbles.length;
+    const step = (Math.PI * 2) / bubbles.length;
 
-    bubbles.forEach((bubble, i) => {
-        let angle = i * angleStep;
-        let x = 265 + radius * Math.cos(angle);
-        let y = 215 + radius * Math.sin(angle);
-
-        bubble.style.left = x + "px";
-        bubble.style.top = y + "px";
+    bubbles.forEach((b, i) => {
+        let angle = i * step;
+        b.style.left = 265 + Math.cos(angle) * radius + "px";
+        b.style.top = 215 + Math.sin(angle) * radius + "px";
     });
 }
 
-function makeDraggable(element, audio) {
-    let offsetX, offsetY;
-    let isDragging = false;
+/* DRAG */
+function makeDraggable(el, audio, state) {
+    let drag = false;
 
-    element.addEventListener("mousedown", (e) => {
-        isDragging = true;
-        offsetX = e.offsetX;
-        offsetY = e.offsetY;
-        element.style.cursor = "grabbing";
-    });
+    el.onmousedown = () => drag = true;
 
-    document.addEventListener("mousemove", (e) => {
-        if (!isDragging) return;
+    document.onmousemove = (e) => {
+        if (!drag) return;
+        el.style.left = e.pageX + "px";
+        el.style.top = e.pageY + "px";
+    };
 
-        let rect = container.getBoundingClientRect();
-        let x = e.clientX - rect.left - offsetX;
-        let y = e.clientY - rect.top - offsetY;
+    document.onmouseup = () => {
+        drag = false;
+        audio.play();
+    };
+}
 
-        if (y > 420) return;
+/* VISUALIZER */
+function startVisualizer() {
+    let data = new Uint8Array(analyser.frequencyBinCount);
 
-        element.style.left = x + "px";
-        element.style.top = y + "px";
-    });
+    function draw() {
+        requestAnimationFrame(draw);
 
-    document.addEventListener("mouseup", () => {
-        if (!isDragging) return;
-        isDragging = false;
-        element.style.cursor = "grab";
+        analyser.getByteFrequencyData(data);
 
-        if (isColliding(element, center)) {
-            audio.play();
+        ctx.clearRect(0,0,600,120);
 
-            element.remove();
-            bubbles = bubbles.filter(b => b !== element);
-            updateBubblePositions();
-
-            center.style.transform = "scale(1.2)";
-            setTimeout(() => center.style.transform = "scale(1)", 200);
+        for (let i=0;i<data.length;i++) {
+            let h = data[i];
+            ctx.fillStyle = "#38bdf8";
+            ctx.fillRect(i*5, 120-h, 3, h);
         }
-    });
+    }
+
+    draw();
 }
 
-function isColliding(a, b) {
-    let r1 = a.getBoundingClientRect();
-    let r2 = b.getBoundingClientRect();
+/* SAVE */
+function saveMix() {
+    const data = {
+        eq: {
+            bass: bassFilter.gain.value,
+            mid: midFilter.gain.value,
+            treble: trebleFilter.gain.value
+        },
+        bubbles: bubbles.length
+    };
 
-    return !(
-        r1.right < r2.left ||
-        r1.left > r2.right ||
-        r1.bottom < r2.top ||
-        r1.top > r2.bottom
-    );
+    localStorage.setItem("song360_mix", JSON.stringify(data));
+
+    alert("Mix sauvegardé 💾");
 }
+
+/* SHARE */
+function shareMix() {
+    const data = {
+        b: bassFilter.gain.value,
+        m: midFilter.gain.value,
+        t: trebleFilter.gain.value
+    };
+
+    const encoded = btoa(JSON.stringify(data));
+    const url = window.location.origin + "?mix=" + encoded;
+
+    navigator.clipboard.writeText(url);
+
+    alert("Lien copié 🌐");
+}
+
+/* LOAD SHARE */
+window.onload = () => {
+    const params = new URLSearchParams(window.location.search);
+    const mix = params.get("mix");
+
+    if (mix) {
+        const data = JSON.parse(atob(mix));
+
+        bassFilter.gain.value = data.b;
+        midFilter.gain.value = data.m;
+        trebleFilter.gain.value = data.t;
+
+        document.getElementById("bass").value = data.b;
+        document.getElementById("mid").value = data.m;
+        document.getElementById("treble").value = data.t;
+    }
+};
 </script>
 
 </body>
