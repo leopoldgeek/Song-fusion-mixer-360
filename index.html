@@ -6,7 +6,6 @@
 <title>Song Fusion Mixer 360 PRO</title>
 
 <style>
-/* ===== GLOBAL ===== */
 body {
     margin: 0;
     height: 100vh;
@@ -14,12 +13,10 @@ body {
     background: radial-gradient(circle at center, #020617, #000);
     color: white;
     font-family: "Segoe UI", sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    text-align: center;
 }
 
-/* ===== TITLE ===== */
+/* TITLE */
 h1 {
     margin: 6px;
     font-size: 18px;
@@ -27,23 +24,26 @@ h1 {
     text-shadow: 0 0 10px #38bdf8;
 }
 
-/* ===== MAIN LAYOUT ===== */
-#main {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    gap: 18px;
-    width: 100%;
-    height: 62vh;
+/* FILE INPUT */
+input[type="file"] {
+    margin: 4px;
+    font-size: 12px;
 }
 
-/* ===== MIXER ===== */
+/* MAIN */
+#main {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    height: 60vh;
+}
+
+/* MIXER */
 #container {
     position: relative;
     width: 420px;
     height: 420px;
-    transform: scale(0.95);
 }
 
 #center {
@@ -58,11 +58,11 @@ h1 {
     align-items: center;
     justify-content: center;
     font-weight: bold;
-    box-shadow: 0 0 25px #f97316;
+    box-shadow: 0 0 20px #f97316;
     transition: 0.2s;
 }
 
-/* ===== BUBBLES ===== */
+/* BUBBLES */
 .bubble {
     position: absolute;
     width: 60px;
@@ -73,11 +73,11 @@ h1 {
     align-items: center;
     justify-content: center;
     cursor: grab;
-    box-shadow: 0 0 12px #38bdf8;
     font-size: 12px;
+    box-shadow: 0 0 10px #38bdf8;
 }
 
-/* ===== VISUALIZER ===== */
+/* VISUALIZER */
 #visualizer {
     width: 320px;
     height: 120px;
@@ -85,18 +85,16 @@ h1 {
     border-radius: 10px;
 }
 
-/* ===== CONTROLS ===== */
+/* CONTROLS */
 #controls {
-    width: 100%;
-    height: 110px;
+    height: 120px;
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 10px;
-    flex-wrap: wrap;
 }
 
-/* ===== EQ SLIDERS ===== */
+/* EQ */
 .eq {
     width: 55px;
     height: 90px;
@@ -104,19 +102,13 @@ h1 {
     -webkit-appearance: slider-vertical;
 }
 
-/* ===== BUTTONS ===== */
+/* BUTTONS */
 button {
     padding: 6px 10px;
     border-radius: 8px;
     border: none;
     background: #38bdf8;
     cursor: pointer;
-    font-size: 12px;
-}
-
-/* ===== INPUT ===== */
-input[type="file"] {
-    font-size: 12px;
 }
 </style>
 </head>
@@ -154,38 +146,43 @@ const center = document.getElementById("center");
 const canvas = document.getElementById("visualizer");
 const ctx = canvas.getContext("2d");
 
-let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let analyser = audioCtx.createAnalyser();
+let bubbles = [];
+let bubbleCount = 0;
+
+/* AUDIO CONTEXT */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const analyser = audioCtx.createAnalyser();
 analyser.fftSize = 256;
 
-let bubbles = [];
-
-let bass = audioCtx.createBiquadFilter();
+/* EQ */
+const bass = audioCtx.createBiquadFilter();
 bass.type = "lowshelf";
 bass.frequency.value = 120;
 
-let mid = audioCtx.createBiquadFilter();
+const mid = audioCtx.createBiquadFilter();
 mid.type = "peaking";
 mid.frequency.value = 1000;
 
-let treble = audioCtx.createBiquadFilter();
+const treble = audioCtx.createBiquadFilter();
 treble.type = "highshelf";
 treble.frequency.value = 4000;
 
-/* EQ */
+/* SLIDERS */
 document.getElementById("bass").oninput = e => bass.gain.value = e.target.value;
 document.getElementById("mid").oninput = e => mid.gain.value = e.target.value;
 document.getElementById("treble").oninput = e => treble.gain.value = e.target.value;
 
-/* FILE */
-fileInput.addEventListener("change", (e) => {
+/* FILE LOAD */
+fileInput.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    await audioCtx.resume();
 
     const audio = new Audio(URL.createObjectURL(file));
     audio.loop = true;
 
-    let source = audioCtx.createMediaElementSource(audio);
+    const source = audioCtx.createMediaElementSource(audio);
 
     source
         .connect(bass)
@@ -198,67 +195,86 @@ fileInput.addEventListener("change", (e) => {
     center.innerText = "CORE 🔊";
 
     createBubble(audio);
-    visualizer();
+    startVisualizer();
 });
 
-/* BUBBLE */
+/* BUBBLES (ton système original) */
 function createBubble(audio) {
     const b = document.createElement("div");
     b.className = "bubble";
-    b.innerText = bubbles.length + 1;
+    b.innerText = ++bubbleCount;
 
     container.appendChild(b);
     bubbles.push(b);
 
-    update();
-    drag(b, audio);
+    updatePositions();
+    makeDraggable(b, audio);
 }
 
-/* POSITION */
-function update() {
-    const r = 150;
+function updatePositions() {
+    const radius = 150;
     const step = (Math.PI * 2) / bubbles.length;
 
     bubbles.forEach((b,i)=>{
         let a = i * step;
-        b.style.left = 180 + Math.cos(a)*r + "px";
-        b.style.top = 180 + Math.sin(a)*r + "px";
+        b.style.left = 180 + Math.cos(a)*radius + "px";
+        b.style.top = 180 + Math.sin(a)*radius + "px";
     });
 }
 
-/* DRAG */
-function drag(el, audio) {
-    let move = false;
+/* DRAG + FUSION */
+function makeDraggable(el, audio) {
+    let drag = false;
 
-    el.onmousedown = () => move = true;
+    el.onmousedown = () => drag = true;
 
     document.onmousemove = e => {
-        if (!move) return;
+        if (!drag) return;
         el.style.left = e.pageX + "px";
         el.style.top = e.pageY + "px";
     };
 
     document.onmouseup = () => {
-        move = false;
-        audio.play();
+        drag = false;
+
+        if (isColliding(el, center)) {
+            audio.play();
+
+            el.remove();
+            bubbles = bubbles.filter(b => b !== el);
+            updatePositions();
+
+            center.style.transform = "scale(1.2)";
+            setTimeout(() => center.style.transform = "scale(1)", 150);
+        }
     };
 }
 
-/* VISUALIZER */
-function visualizer() {
-    let data = new Uint8Array(analyser.frequencyBinCount);
+function isColliding(a,b){
+    const r1 = a.getBoundingClientRect();
+    const r2 = b.getBoundingClientRect();
 
-    function draw() {
+    return !(r1.right < r2.left ||
+             r1.left > r2.right ||
+             r1.bottom < r2.top ||
+             r1.top > r2.bottom);
+}
+
+/* VISUALIZER */
+function startVisualizer(){
+    const data = new Uint8Array(analyser.frequencyBinCount);
+
+    function draw(){
         requestAnimationFrame(draw);
 
         analyser.getByteFrequencyData(data);
 
         ctx.clearRect(0,0,320,120);
 
-        for (let i=0;i<data.length;i++) {
+        for(let i=0;i<data.length;i++){
             let h = data[i];
             ctx.fillStyle = "#38bdf8";
-            ctx.fillRect(i*3, 120-h, 2, h);
+            ctx.fillRect(i*3,120-h,2,h);
         }
     }
 
@@ -266,19 +282,20 @@ function visualizer() {
 }
 
 /* SAVE */
-function saveMix() {
+function saveMix(){
     const mix = {
         bass: bass.gain.value,
         mid: mid.gain.value,
-        treble: treble.gain.value
+        treble: treble.gain.value,
+        bubbles: bubbles.length
     };
 
-    localStorage.setItem("song360", JSON.stringify(mix));
-    alert("Mix sauvegardé 💾");
+    localStorage.setItem("song360_mix", JSON.stringify(mix));
+    alert("💾 Mix sauvegardé !");
 }
 
 /* SHARE */
-function shareMix() {
+function shareMix(){
     const mix = {
         b: bass.gain.value,
         m: mid.gain.value,
@@ -289,19 +306,23 @@ function shareMix() {
     const link = window.location.origin + "?mix=" + url;
 
     navigator.clipboard.writeText(link);
-    alert("Lien copié 🌐");
+    alert("🌐 Lien copié !");
 }
 
 /* LOAD SHARE */
 window.onload = () => {
-    const p = new URLSearchParams(location.search).get("mix");
-    if (!p) return;
+    const mix = new URLSearchParams(location.search).get("mix");
+    if (!mix) return;
 
-    const d = JSON.parse(atob(p));
+    const data = JSON.parse(atob(mix));
 
-    bass.gain.value = d.b;
-    mid.gain.value = d.m;
-    treble.gain.value = d.t;
+    bass.gain.value = data.b;
+    mid.gain.value = data.m;
+    treble.gain.value = data.t;
+
+    document.getElementById("bass").value = data.b;
+    document.getElementById("mid").value = data.m;
+    document.getElementById("treble").value = data.t;
 };
 </script>
 
