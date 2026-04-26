@@ -2,49 +2,64 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Song 360 Fusion Mixer</title>
+<title>Song 360 Fusion Mixer PRO</title>
+
 <style>
 body {
   margin: 0;
   font-family: Arial;
-  background: #0b0f1a;
+  background: #05070f;
   color: white;
   overflow: hidden;
 }
 
+/* VINYL BACKGROUND */
+#vinyl {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #222 10%, #000 70%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: spin 10s linear infinite;
+  opacity: 0.25;
+  z-index: 0;
+}
+
+@keyframes spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
 /* TOP BAR */
 #topbar {
-  height: 60px;
+  position: relative;
+  z-index: 2;
   display: flex;
   justify-content: space-between;
-  align-items: center;
   padding: 10px;
-  background: #11182b;
+  background: #0f1629;
 }
 
 button {
   background: #2b6cff;
   border: none;
-  padding: 10px;
+  padding: 8px 12px;
   color: white;
   border-radius: 8px;
   cursor: pointer;
-  margin-right: 5px;
 }
 
 /* CENTER */
-#workspace {
-  display: flex;
-  height: calc(100vh - 140px);
-}
-
 #canvas {
-  flex: 1;
   position: relative;
-  background: radial-gradient(circle, #1b2a4a, #05070f);
-  overflow: hidden;
+  height: calc(100vh - 160px);
+  z-index: 2;
 }
 
+/* BUBBLES */
 .bubble {
   position: absolute;
   width: 80px;
@@ -55,13 +70,18 @@ button {
   align-items: center;
   justify-content: center;
   cursor: grab;
-  user-select: none;
+  font-size: 12px;
 }
 
 /* RIGHT EFFECTS */
 #effects {
+  position: absolute;
+  right: 0;
+  top: 60px;
   width: 220px;
+  height: calc(100vh - 160px);
   background: #0f1629;
+  z-index: 3;
   padding: 10px;
 }
 
@@ -70,16 +90,19 @@ button {
   padding: 8px;
   background: #1b2a4a;
   border-radius: 8px;
+  cursor: pointer;
 }
 
-/* BOTTOM VOLUME */
+/* BOTTOM */
 #bottom {
   height: 80px;
-  background: #11182b;
+  background: #0f1629;
   display: flex;
-  align-items: center;
   overflow-x: auto;
+  align-items: center;
   padding: 10px;
+  position: relative;
+  z-index: 2;
 }
 
 .track {
@@ -87,108 +110,177 @@ button {
 }
 </style>
 </head>
+
 <body>
+
+<div id="vinyl"></div>
 
 <!-- TOP -->
 <div id="topbar">
   <div>
+    <button onclick="document.getElementById('file').click()">➕ Ajouter son</button>
     <button onclick="playAll()">▶ Play</button>
     <button onclick="pauseAll()">⏸ Pause</button>
     <button onclick="startRecord()">⏺ Record</button>
-    <button onclick="downloadMix()">⬇ Download</button>
+    <button onclick="downloadMix()">⬇ Export</button>
+    <button onclick="saveProject()">💾 Save</button>
+    <button onclick="loadProject()">📂 Load</button>
+
+    <input type="file" id="file" multiple hidden>
   </div>
-  <div>🎧 Song 360 Fusion Mixer</div>
+  <div>🎧 SONG 360 PRO</div>
 </div>
 
-<!-- MAIN -->
-<div id="workspace">
+<!-- CENTER -->
+<div id="canvas"></div>
 
-  <!-- CENTER -->
-  <div id="canvas"></div>
-
-  <!-- EFFECTS -->
-  <div id="effects">
-    <h3>🎛 Effets</h3>
-    <div class="effect">Reverb</div>
-    <div class="effect">Bass Boost</div>
-    <div class="effect">Echo</div>
-    <div class="effect">Distortion</div>
-    <div class="effect">Low Pass</div>
-  </div>
+<!-- EFFECTS -->
+<div id="effects">
+  <h3>🎛 FX</h3>
+  <div class="effect" onclick="setEffect('reverb')">Reverb</div>
+  <div class="effect" onclick="setEffect('echo')">Echo</div>
+  <div class="effect" onclick="setEffect('filter')">Low Pass</div>
+  <div class="effect" onclick="setEffect('none')">Clean</div>
 </div>
 
 <!-- BOTTOM -->
 <div id="bottom"></div>
 
 <script>
+
 const canvas = document.getElementById("canvas");
 const bottom = document.getElementById("bottom");
+const fileInput = document.getElementById("file");
 
-let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let sources = [];
-let gainNodes = [];
+let ctx = new AudioContext();
+let dest = ctx.createMediaStreamDestination();
 let recorder;
-let dest = audioCtx.createMediaStreamDestination();
 
-/* ADD SAMPLE BUBBLE */
-function addAudio(file) {
-  const reader = new FileReader();
+let tracks = [];
 
-  reader.onload = function(e) {
-    audioCtx.decodeAudioData(e.target.result, buffer => {
+let currentEffect = "none";
 
-      let source = audioCtx.createBufferSource();
-      source.buffer = buffer;
+/* EFFECT BUS */
+let masterGain = ctx.createGain();
+masterGain.connect(ctx.destination);
+masterGain.connect(dest);
 
-      let gain = audioCtx.createGain();
-      gain.gain.value = 1;
+/* LOAD FILE */
+fileInput.onchange = e => {
+  [...e.target.files].forEach(loadAudio);
+};
 
-      source.connect(gain);
-      gain.connect(audioCtx.destination);
-      gain.connect(dest);
+/* LOAD AUDIO */
+function loadAudio(file){
+  let reader = new FileReader();
 
-      sources.push(source);
-      gainNodes.push(gain);
+  reader.onload = async function(e){
+    let buffer = await ctx.decodeAudioData(e.target.result);
 
-      createBubble(file.name, source, gain);
-      createVolumeControl(gain, file.name);
-    });
+    let source = ctx.createBufferSource();
+    source.buffer = buffer;
+
+    let gain = ctx.createGain();
+    gain.gain.value = 1;
+
+    let node = applyFX(ctx, gain);
+
+    source.connect(gain);
+    node.connect(masterGain);
+
+    tracks.push({file, buffer, gain});
+
+    createBubble(file.name, source, gain);
+    createSlider(file.name, gain);
   };
 
   reader.readAsArrayBuffer(file);
 }
 
+/* FX ENGINE */
+function applyFX(ctx, input){
+
+  let last = input;
+
+  if(currentEffect === "echo"){
+    let delay = ctx.createDelay();
+    delay.delayTime.value = 0.3;
+
+    let fb = ctx.createGain();
+    fb.gain.value = 0.4;
+
+    last.connect(delay);
+    delay.connect(fb);
+    fb.connect(delay);
+
+    delay.connect(masterGain);
+    return delay;
+  }
+
+  if(currentEffect === "filter"){
+    let filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 800;
+
+    last.connect(filter);
+    filter.connect(masterGain);
+    return filter;
+  }
+
+  if(currentEffect === "reverb"){
+    let convolver = ctx.createConvolver();
+    let impulse = ctx.createBuffer(2, ctx.sampleRate * 1.5, ctx.sampleRate);
+
+    for(let c=0;c<2;c++){
+      let data = impulse.getChannelData(c);
+      for(let i=0;i<data.length;i++){
+        data[i] = (Math.random()*2-1) * Math.exp(-i/20000);
+      }
+    }
+
+    convolver.buffer = impulse;
+
+    last.connect(convolver);
+    convolver.connect(masterGain);
+    return convolver;
+  }
+
+  last.connect(masterGain);
+  return masterGain;
+}
+
 /* BUBBLE */
-function createBubble(name, source, gain) {
+function createBubble(name, source, gain){
   let div = document.createElement("div");
   div.className = "bubble";
-  div.innerText = name.slice(0,6);
+  div.innerText = "🎵";
 
-  div.style.left = Math.random()*400 + "px";
+  div.style.left = Math.random()*500 + "px";
   div.style.top = Math.random()*300 + "px";
 
-  let isDragging = false;
+  let dragging = false;
 
-  div.onmousedown = () => isDragging = true;
-  document.onmouseup = () => isDragging = false;
+  div.onmousedown = ()=> dragging = true;
+  document.onmouseup = ()=> dragging = false;
 
-  document.onmousemove = (e) => {
-    if(isDragging){
+  document.onmousemove = e=>{
+    if(dragging){
       div.style.left = e.pageX + "px";
       div.style.top = e.pageY + "px";
     }
   };
 
-  div.ondblclick = () => {
-    // fusion = boost volume
-    gain.gain.value += 0.3;
+  /* 🔥 FUSION CROSSFADE */
+  div.ondblclick = ()=>{
+    let target = 1.8;
+    gain.gain.linearRampToValueAtTime(target, ctx.currentTime + 0.5);
   };
 
   canvas.appendChild(div);
 }
 
-/* VOLUME CONTROL */
-function createVolumeControl(gain, name){
+/* VOLUME SLIDER */
+function createSlider(name, gain){
   let div = document.createElement("div");
   div.className = "track";
 
@@ -197,53 +289,99 @@ function createVolumeControl(gain, name){
     <input type="range" min="0" max="2" step="0.01" value="1">
   `;
 
-  let slider = div.querySelector("input");
-  slider.oninput = () => {
-    gain.gain.value = slider.value;
+  div.querySelector("input").oninput = e=>{
+    gain.gain.value = e.target.value;
   };
 
   bottom.appendChild(div);
 }
 
+/* EFFECT */
+function setEffect(type){
+  currentEffect = type;
+}
+
 /* PLAY */
 function playAll(){
-  audioCtx.resume();
-  sources.forEach(s => {
-    try { s.start(); } catch(e){}
+  ctx.resume();
+  tracks.forEach(t=>{
+    let s = ctx.createBufferSource();
+    s.buffer = t.buffer;
+
+    let g = ctx.createGain();
+    g.gain.value = t.gain.gain.value;
+
+    s.connect(g);
+    g.connect(masterGain);
+
+    s.start();
   });
 }
 
 /* PAUSE */
 function pauseAll(){
-  audioCtx.suspend();
+  ctx.suspend();
 }
 
 /* RECORD */
 function startRecord(){
   recorder = new MediaRecorder(dest.stream);
   recorder.start();
-  recorder.ondataavailable = e => {
-    let url = URL.createObjectURL(e.data);
+
+  recorder.ondataavailable = e=>{
     window.recordedBlob = e.data;
-    window.recordedURL = url;
+    window.recordedURL = URL.createObjectURL(e.data);
   };
 }
 
 /* DOWNLOAD */
 function downloadMix(){
-  if(!window.recordedBlob) return alert("Pas encore enregistré !");
+  if(!window.recordedBlob) return alert("No recording");
   let a = document.createElement("a");
   a.href = window.recordedURL;
   a.download = "song360_mix.webm";
   a.click();
 }
 
-/* DROP FILE */
-document.body.ondragover = e => e.preventDefault();
-document.body.ondrop = e => {
-  e.preventDefault();
-  [...e.dataTransfer.files].forEach(addAudio);
+/* SAVE PROJECT (.song360) */
+function saveProject(){
+  let data = tracks.map(t=>({
+    name: t.file.name,
+    volume: t.gain.gain.value
+  }));
+
+  let blob = new Blob([JSON.stringify(data)], {type:"application/json"});
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "project.song360";
+  a.click();
+}
+
+/* LOAD PROJECT */
+function loadProject(){
+  let inp = document.createElement("input");
+  inp.type = "file";
+
+  inp.onchange = e=>{
+    let f = e.target.files[0];
+    let r = new FileReader();
+
+    r.onload = e=>{
+      let data = JSON.parse(e.target.result);
+      alert("Projet chargé (demo metadata): " + data.length + " pistes");
+    };
+
+    r.readAsText(f);
+  };
+
+  inp.click();
+}
+
+/* FILE INPUT */
+fileInput.onchange = e=>{
+  [...e.target.files].forEach(loadAudio);
 };
+
 </script>
 
 </body>
