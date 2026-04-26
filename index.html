@@ -2,134 +2,137 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Song360 One Page</title>
+<title>Song360 PRO+</title>
+ <link rel="icon" href="favicon.png" type="image/png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body{
- margin:0;
- background:#020617;
- color:white;
- font-family:Arial;
- text-align:center;
- overflow:hidden;
-}
+body{margin:0;background:#020617;color:white;font-family:Arial;text-align:center;}
+#nav{margin:10px;}
+button{margin:5px;padding:8px;}
 
-.hidden{display:none;}
+.panel{display:none;}
+.active{display:block;}
 
-button,input{margin:5px;padding:6px;}
+#container{position:relative;width:420px;height:420px;margin:auto;}
+#center{position:absolute;top:170px;left:170px;width:80px;height:80px;background:orange;border-radius:50%;}
 
-#container{
- position:relative;
- width:420px;
- height:420px;
- margin:auto;
-}
+.bubble{position:absolute;width:60px;height:60px;background:#38bdf8;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:grab;}
 
-#center{
- position:absolute;
- top:170px;
- left:170px;
- width:80px;
- height:80px;
- border-radius:50%;
- background:orange;
-}
-
-.bubble{
- position:absolute;
- width:60px;
- height:60px;
- border-radius:50%;
- background:#38bdf8;
- display:flex;
- align-items:center;
- justify-content:center;
- cursor:grab;
- font-size:10px;
-}
-
-/* CLOUD PANEL */
-#cloudPanel{
- position:absolute;
- top:0;
- left:0;
- width:100%;
- height:100%;
- background:#020617;
- display:none;
- padding-top:20px;
-}
-
-.item{
- background:#111827;
- margin:10px auto;
- width:250px;
- padding:10px;
- border-radius:8px;
- cursor:pointer;
-}
+.item{background:#111827;margin:10px auto;padding:10px;width:250px;border-radius:8px;cursor:pointer;}
 </style>
 </head>
 
 <body>
 
-<h2>🎧 Song360 ONE PAGE</h2>
+<h2>🎧 Song360 PRO+</h2>
 
-<button onclick="showMixer()">🎧 Mixer</button>
-<button onclick="showCloud()">☁️ Cloud</button>
+<div id="nav">
+<button onclick="show('mixer')">Mixer</button>
+<button onclick="show('cloud')">Cloud</button>
+</div>
+
+<!-- LOGIN -->
+<input id="email" placeholder="email">
+<input id="password" type="password">
+<button onclick="signup()">Créer</button>
+<button onclick="login()">Login</button>
+
+<p id="status">Non connecté</p>
+
+<!-- MIXER -->
+<div id="mixer" class="panel active">
+
+<input type="file" id="fileInput">
 
 <br>
 
-<input type="file" id="fileInput" accept="audio/*">
+<label>Bass</label>
+<input type="range" id="bass" min="0" max="2" step="0.1" value="1">
 
-<!-- ================= MIXER ================= -->
-<div id="mixer">
+<label>Volume</label>
+<input type="range" id="volume" min="0" max="2" step="0.1" value="1">
+
 <div id="container">
 <div id="center"></div>
 </div>
+
+<button onclick="saveMix()">💾 Save</button>
+
 </div>
 
-<!-- ================= CLOUD ================= -->
-<div id="cloudPanel">
-<h3>☁️ Cloud</h3>
-
-<button onclick="saveMix()">💾 Save Mix</button>
-
+<!-- CLOUD -->
+<div id="cloud" class="panel">
+<h3>📚 Bibliothèque</h3>
 <div id="library"></div>
 </div>
 
 <script>
 
-/* ================= SUPABASE ================= */
+/* SUPABASE */
 const supabase = window.supabase.createClient(
  "https://hnpfyxnodhthzxvwfnvl.supabase.co",
  "sb_publishable_pJJjozADUUOFcBp3uut0dg_yH2SVm8V"
 );
 
+let user=null;
 let bubbles=[];
-let files=[];
 
-/* ================= UI ================= */
-function showMixer(){
- document.getElementById("mixer").style.display="block";
- document.getElementById("cloudPanel").style.display="none";
+/* NAV */
+function show(id){
+ document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+ document.getElementById(id).classList.add("active");
+ if(id==="cloud") loadLibrary();
 }
 
-function showCloud(){
- document.getElementById("mixer").style.display="none";
- document.getElementById("cloudPanel").style.display="block";
- loadLibrary();
+/* AUTH */
+async function signup(){
+ const {error}=await supabase.auth.signUp({
+  email:email.value,
+  password:password.value
+ });
+ alert(error?error.message:"Compte créé !");
 }
 
-/* ================= AUDIO ================= */
-fileInput.onchange=(e)=>{
+async function login(){
+ const {data,error}=await supabase.auth.signInWithPassword({
+  email:email.value,
+  password:password.value
+ });
+ if(error)return alert(error.message);
+ user=data.user;
+ status.innerText="Connecté";
+}
+
+/* AUDIO */
+fileInput.onchange=async e=>{
  const file=e.target.files[0];
  if(!file)return;
 
- const url=URL.createObjectURL(file);
- const audio=new Audio(url);
+ const path=Date.now()+file.name;
+
+ const {error}=await supabase.storage.from("songs").upload(path,file);
+ if(error)return alert(error.message);
+
+ const {data}=supabase.storage.from("songs").getPublicUrl(path);
+
+ const audio=new Audio(data.publicUrl);
  audio.loop=true;
+
+ createBubble(audio,data.publicUrl);
+};
+
+function createBubble(audio,url){
+ const ctx=new AudioContext();
+ const source=ctx.createMediaElementSource(audio);
+
+ const gain=ctx.createGain();
+ const bassFilter=ctx.createBiquadFilter();
+ bassFilter.type="lowshelf";
+
+ source.connect(bassFilter);
+ bassFilter.connect(gain);
+ gain.connect(ctx.destination);
 
  const el=document.createElement("div");
  el.className="bubble";
@@ -137,11 +140,12 @@ fileInput.onchange=(e)=>{
 
  container.appendChild(el);
 
- bubbles.push({el,audio,x:200,y:200});
+ const obj={el,audio,url,gain,bassFilter,x:200,y:200};
+ bubbles.push(obj);
 
  update();
- drag(bubbles[bubbles.length-1]);
-};
+ drag(obj);
+}
 
 function update(){
  bubbles.forEach((b,i)=>{
@@ -171,31 +175,55 @@ function drag(b){
 
  document.onmouseup=()=>{
  move=false;
+
+ if(collide(b.el,center)){
+ b.audio.play();
+ }
  };
 }
 
-/* ================= CLOUD UPLOAD ================= */
-async function saveMix(){
- const mix=bubbles.map(b=>({name:"sound"}));
+function collide(a,b){
+ const r1=a.getBoundingClientRect();
+ const r2=b.getBoundingClientRect();
+ return !(r1.right<r2.left||r1.left>r2.right||r1.bottom<r2.top||r1.top>r2.bottom);
+}
 
- const {error}=await supabase
- .from("mixes")
- .insert([{
- is_public:true,
- data:mix
- }]);
+/* EFFECTS */
+bass.oninput=()=>{
+ bubbles.forEach(b=>{
+ b.bassFilter.gain.value=bass.value*10;
+ });
+};
+
+volume.oninput=()=>{
+ bubbles.forEach(b=>{
+ b.gain.gain.value=volume.value;
+ });
+};
+
+/* SAVE + SHARE */
+async function saveMix(){
+
+ if(!user)return alert("login requis");
+
+ const mix=bubbles.map(b=>({url:b.url}));
+
+ const {data,error}=await supabase
+  .from("mixes")
+  .insert([{user_id:user.id,data:mix}])
+  .select();
 
  if(error)return alert(error.message);
 
- alert("💾 Mix sauvegardé !");
- loadLibrary();
+ const link=location.origin+"?mix="+data[0].id;
+ navigator.clipboard.writeText(link);
+
+ alert("🔗 lien copié !");
 }
 
-/* ================= LOAD LIBRARY ================= */
+/* LOAD */
 async function loadLibrary(){
- const {data}=await supabase
- .from("mixes")
- .select("*");
+ const {data}=await supabase.from("mixes").select("*");
 
  library.innerHTML="";
 
@@ -205,10 +233,29 @@ async function loadLibrary(){
  div.innerText="🎧 Mix";
 
  div.onclick=()=>{
- alert("Mix chargé !");
+ bubbles.forEach(b=>b.el.remove());
+ bubbles=[];
+
+ m.data.forEach(s=>{
+ const audio=new Audio(s.url);
+ audio.loop=true;
+ createBubble(audio,s.url);
+ });
  };
 
  library.appendChild(div);
+ });
+}
+
+/* SHARE LOAD */
+const params=new URLSearchParams(location.search);
+if(params.get("mix")){
+ supabase.from("mixes").select("*").eq("id",params.get("mix")).single()
+ .then(({data})=>{
+ data.data.forEach(s=>{
+ const audio=new Audio(s.url);
+ createBubble(audio,s.url);
+ });
  });
 }
 
