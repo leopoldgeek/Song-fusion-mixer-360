@@ -1,211 +1,443 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<title>Song360 Fusion Stable</title>
-<link rel="icon" href="favicon.png">
+  <meta charset="UTF-8">
+  <title>Song 360 - fusion mixer</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      height: 100vh;
+      background: #111;
+      color: #f5f5f5;
+    }
 
-<style>
-body{
-margin:0;
-background:#020617;
-color:white;
-font-family:Arial;
-text-align:center;
-}
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      box-sizing: border-box;
+    }
 
-h1{
-color:#38bdf8;
-text-shadow:0 0 10px #38bdf8;
-}
+    header {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
 
-#container{
-position:relative;
-width:650px;
-height:500px;
-margin:auto;
-background:#0f172a;
-border-radius:20px;
-overflow:hidden;
-}
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+    }
 
-.bubble{
-position:absolute;
-width:70px;
-height:70px;
-border-radius:50%;
-background:linear-gradient(45deg,#38bdf8,#0ea5e9);
-display:flex;
-align-items:center;
-justify-content:center;
-cursor:grab;
-user-select:none;
-font-weight:bold;
-}
+    .controls-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
 
-.bubble.active{
-box-shadow:0 0 20px lime;
-transform:scale(1.1);
-}
+    button {
+      background: #2b6cb0;
+      border: none;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
 
-#core{
-position:absolute;
-top:210px;
-left:285px;
-width:80px;
-height:80px;
-border-radius:50%;
-background:orange;
-display:flex;
-align-items:center;
-justify-content:center;
-font-weight:bold;
-}
-button{
-margin:5px;
-padding:8px;
-border:none;
-background:#38bdf8;
-cursor:pointer;
-}
-</style>
+    button:disabled {
+      background: #555;
+      cursor: default;
+    }
+
+    input[type="file"] {
+      color: #ddd;
+    }
+
+    .bubble-container {
+      flex: 1;
+      border-radius: 8px;
+      border: 1px solid #333;
+      padding: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-content: flex-start;
+      overflow-y: auto;
+      background: radial-gradient(circle at top left, #1f2933, #050608);
+    }
+
+    .bubble {
+      min-width: 120px;
+      max-width: 180px;
+      padding: 8px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+    }
+
+    .bubble-title {
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bubble-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .bubble-row label {
+      font-size: 11px;
+      opacity: 0.8;
+    }
+
+    .bubble-row input[type="range"] {
+      flex: 1;
+    }
+
+    .side-panel {
+      width: 260px;
+      border-left: 1px solid #333;
+      padding: 16px;
+      box-sizing: border-box;
+      background: #050608;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .panel-section {
+      border-radius: 8px;
+      border: 1px solid #333;
+      padding: 10px;
+      background: #111827;
+    }
+
+    .panel-section h2 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #9ca3af;
+    }
+
+    .panel-section label {
+      font-size: 12px;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .panel-section select,
+    .panel-section input[type="range"] {
+      width: 100%;
+    }
+
+    .status {
+      font-size: 12px;
+      opacity: 0.8;
+      margin-top: 4px;
+    }
+
+    .record-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: red;
+      margin-right: 6px;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.4; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
 </head>
-
 <body>
+  <div class="main">
+    <header>
+      <h1>Mixer Audio</h1>
+    </header>
 
-<h1>🎧 Song360 Fusion Stable</h1>
+    <div class="controls-row">
+      <div>
+        <label for="baseSound">Son de base :</label>
+        <input type="file" id="baseSound" accept="audio/*">
+      </div>
 
-<input type="file" id="file" accept="audio/*">
+      <div>
+        <label for="addTrack">Ajouter des fichiers MP3 :</label>
+        <input type="file" id="addTrack" accept="audio/*" multiple>
+      </div>
 
-<div id="container">
-<div id="core">CORE</div>
-</div>
+      <div>
+        <button id="playAll" disabled>Lire / Pause</button>
+        <button id="recordBtn" disabled>Enregistrer le mix</button>
+        <button id="exportBtn" disabled>Exporter l'enregistrement</button>
+      </div>
+    </div>
 
-<button onclick="startRec()">🎙 Record</button>
-<button onclick="stopRec()">💾 Download</button>
+    <div class="bubble-container" id="bubbleContainer">
+      <!-- Bulles des pistes -->
+    </div>
+  </div>
 
-<script>
-const container=document.getElementById("container");
-const file=document.getElementById("file");
-const core=document.getElementById("core");
+  <aside class="side-panel">
+    <div class="panel-section">
+      <h2>Mix global</h2>
+      <label for="masterVolume">Volume général</label>
+      <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="1">
+      <div class="status" id="playStatus">Aucun son chargé.</div>
+    </div>
 
-let bubbles=[];
-let audioCtx = new AudioContext();
-let dest = audioCtx.createMediaStreamDestination();
+    <div class="panel-section">
+      <h2>Effets audio</h2>
+      <label for="effectSelect">Choisir un effet</label>
+      <select id="effectSelect" size="8">
+        <option>1. Reverb légère</option>
+        <option>2. Reverb grande salle</option>
+        <option>3. Echo court</option>
+        <option>4. Echo long</option>
+        <option>5. Chorus</option>
+        <option>6. Flanger</option>
+        <option>7. Phaser</option>
+        <option>8. Distorsion douce</option>
+        <option>9. Distorsion forte</option>
+        <option>10. Filtre passe-bas</option>
+        <option>11. Filtre passe-haut</option>
+        <option>12. Compresseur</option>
+        <option>13. Pitch +1 ton</option>
+        <option>14. Pitch -1 ton</option>
+        <option>15. Stéréo élargie</option>
+      </select>
+      <div class="status" id="effectStatus">
+        Effets listés à titre de démonstration (structure prête pour une vraie implémentation Web Audio).
+      </div>
+    </div>
 
-/* RECORD */
-let recorder;
-let chunks=[];
+    <div class="panel-section">
+      <h2>Enregistrement</h2>
+      <div id="recordStatus" class="status">En attente.</div>
+    </div>
+  </aside>
 
-/* CREATE BUBBLE */
-file.onchange=(e)=>{
-const f=e.target.files[0];
-const url=URL.createObjectURL(f);
+  <script>
+    // --- Contexte audio ---
+    let audioCtx = null;
+    let masterGain = null;
+    let destinationNode = null; // pour enregistrement
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let isPlaying = false;
 
-const audio=new Audio(url);
-audio.loop=false;
+    const tracks = []; // { name, buffer, gainNode, source, volume }
 
-const source=audioCtx.createMediaElementSource(audio);
-const gain=audioCtx.createGain();
+    const baseInput = document.getElementById('baseSound');
+    const addInput = document.getElementById('addTrack');
+    const bubbleContainer = document.getElementById('bubbleContainer');
+    const playAllBtn = document.getElementById('playAll');
+    const recordBtn = document.getElementById('recordBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const masterVolume = document.getElementById('masterVolume');
+    const playStatus = document.getElementById('playStatus');
+    const recordStatus = document.getElementById('recordStatus');
 
-source.connect(gain);
-gain.connect(audioCtx.destination);
-gain.connect(dest);
+    function ensureAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = parseFloat(masterVolume.value);
 
-const bubble=document.createElement("div");
-bubble.className="bubble";
-bubble.innerText=bubbles.length+1;
+        // Destination pour écoute
+        const mainOut = audioCtx.destination;
 
-container.appendChild(bubble);
+        // Destination pour enregistrement (MediaStreamAudioDestinationNode)
+        destinationNode = audioCtx.createMediaStreamDestination();
 
-let data={
-el:bubble,
-audio,
-gain,
-x:100+Math.random()*400,
-y:100+Math.random()*300
-};
+        // On envoie le master vers les deux sorties
+        masterGain.connect(mainOut);
+        masterGain.connect(destinationNode);
 
-bubble.style.left=data.x+"px";
-bubble.style.top=data.y+"px";
+        // MediaRecorder sur le stream du mix
+        mediaRecorder = new MediaRecorder(destinationNode.stream);
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+        mediaRecorder.onstop = () => {
+          recordStatus.innerHTML = 'Enregistrement terminé. Vous pouvez exporter.';
+          exportBtn.disabled = recordedChunks.length === 0;
+        };
+      }
+    }
 
-/* CLICK PLAY + LOOP */
-bubble.onclick=()=>{
-audio.currentTime=0;
-audio.play();
+    masterVolume.addEventListener('input', () => {
+      if (masterGain) {
+        masterGain.gain.value = parseFloat(masterVolume.value);
+      }
+    });
 
-audio.loop=!audio.loop;
-bubble.classList.toggle("active");
-};
+    function createTrackBubble(track) {
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
 
-/* DRAG */
-let drag=false;
+      const title = document.createElement('div');
+      title.className = 'bubble-title';
+      title.textContent = track.name;
 
-bubble.onmousedown=()=>drag=true;
+      const row = document.createElement('div');
+      row.className = 'bubble-row';
 
-document.onmousemove=(e)=>{
-if(!drag) return;
+      const label = document.createElement('label');
+      label.textContent = 'Volume';
 
-const rect=container.getBoundingClientRect();
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = '0';
+      slider.max = '1';
+      slider.step = '0.01';
+      slider.value = track.volume;
 
-data.x=e.clientX-rect.left;
-data.y=e.clientY-rect.top;
+      slider.addEventListener('input', () => {
+        track.volume = parseFloat(slider.value);
+        if (track.gainNode) {
+          track.gainNode.gain.value = track.volume;
+        }
+      });
 
-bubble.style.left=data.x+"px";
-bubble.style.top=data.y+"px";
+      row.appendChild(label);
+      row.appendChild(slider);
 
-checkFusion(data);
-};
+      bubble.appendChild(title);
+      bubble.appendChild(row);
 
-document.onmouseup=()=>drag=false;
+      bubbleContainer.appendChild(bubble);
+    }
 
-bubbles.push(data);
-};
+    async function fileToBuffer(file) {
+      ensureAudioContext();
+      const arrayBuffer = await file.arrayBuffer();
+      return await audioCtx.decodeAudioData(arrayBuffer);
+    }
 
-/* FUSION SIMPLE */
-function checkFusion(b){
-bubbles.forEach(o=>{
-if(o===b) return;
+    async function addTrackFromFile(file, isBase = false) {
+      const buffer = await fileToBuffer(file);
+      const track = {
+        name: (isBase ? '[Base] ' : '') + file.name,
+        buffer,
+        gainNode: null,
+        source: null,
+        volume: 1
+      };
+      tracks.push(track);
+      createTrackBubble(track);
+      playAllBtn.disabled = false;
+      recordBtn.disabled = false;
+      playStatus.textContent = 'Pistes chargées. Prêt à lire.';
+    }
 
-let dx=b.x-o.x;
-let dy=b.y-o.y;
-let d=Math.sqrt(dx*dx+dy*dy);
+    baseInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        await addTrackFromFile(file, true);
+      }
+    });
 
-if(d<80){
-b.gain.gain.value+=0.2;
-o.gain.gain.value+=0.2;
+    addInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files);
+      for (const f of files) {
+        await addTrackFromFile(f, false);
+      }
+    });
 
-core.style.transform="scale(1.2)";
-setTimeout(()=>core.style.transform="scale(1)",200);
-}
-});
-}
+    function stopAllSources() {
+      tracks.forEach(t => {
+        if (t.source) {
+          try { t.source.stop(); } catch {}
+          t.source.disconnect();
+          t.source = null;
+        }
+        if (t.gainNode) {
+          t.gainNode.disconnect();
+          t.gainNode = null;
+        }
+      });
+    }
 
-/* RECORD */
-function startRec(){
-chunks=[];
-recorder=new MediaRecorder(dest.stream);
+    function startAllSources() {
+      ensureAudioContext();
+      stopAllSources();
+      const now = audioCtx.currentTime;
+      tracks.forEach(t => {
+        const source = audioCtx.createBufferSource();
+        source.buffer = t.buffer;
 
-recorder.ondataavailable=e=>chunks.push(e.data);
-recorder.start();
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = t.volume;
 
-alert("Recording...");
-}
+        source.connect(gainNode);
+        gainNode.connect(masterGain);
 
-function stopRec(){
-recorder.stop();
+        source.start(now);
 
-recorder.onstop=()=>{
-const blob=new Blob(chunks,{type:"audio/webm"});
-const url=URL.createObjectURL(blob);
+        t.source = source;
+        t.gainNode = gainNode;
+      });
+    }
 
-const a=document.createElement("a");
-a.href=url;
-a.download="song360_mix.webm";
-a.click();
-};
-}
-</script>
+    playAllBtn.addEventListener('click', () => {
+      if (!audioCtx) ensureAudioContext();
 
+      if (!isPlaying) {
+        startAllSources();
+        isPlaying = true;
+        playAllBtn.textContent = 'Relancer / Rejouer';
+        playStatus.textContent = 'Lecture en cours.';
+      } else {
+        // On relance simplement depuis le début
+        startAllSources();
+        playStatus.textContent = 'Lecture relancée.';
+      }
+    });
+
+    recordBtn.addEventListener('click', () => {
+      if (!mediaRecorder) return;
+      if (mediaRecorder.state === 'inactive') {
+        recordedChunks = [];
+        mediaRecorder.start();
+        recordStatus.innerHTML = '<span class="record-indicator"></span>Enregistrement en cours...';
+      } else if (mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        recordStatus.textContent = 'Arrêt de l\'enregistrement...';
+      }
+    });
+
+    exportBtn.addEventListener('click', () => {
+      if (!recordedChunks.length) return;
+      const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'mix_enregistrement.webm';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  </script>
 </body>
 </html>
