@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Song 360 Fusion Mixer DJ</title>
+  <title>Song 360 Fusion MixerDJ</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <style>
     body {
@@ -82,16 +82,6 @@
     .bubble-title {
       font-weight: 600;
       text-align: center;
-    }
-    .volume-row {
-      margin-top: 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .volume-row label {
-      font-size: 11px;
-      opacity: 0.8;
     }
     .side-panel {
       width: 260px;
@@ -199,7 +189,7 @@
 <body>
 
   <div class="main">
-    <header><h1>Song 360 Fusion Mixer DJ</h1></header>
+    <header><h1>Mixer Audio DJ</h1></header>
 
     <div class="controls-row">
       <div>
@@ -259,8 +249,7 @@
   </aside>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
-
-<script>
+  <script>
 let audioCtx = null;
 let masterGain = null;
 let highFilter = null;
@@ -306,7 +295,6 @@ function ensureAudioContext() {
     lowFilter.type = "lowpass";
     lowFilter.frequency.value = 20000;
 
-    // Chaîne par défaut : filtres -> master -> sortie
     highFilter.connect(lowFilter);
     lowFilter.connect(masterGain);
     masterGain.connect(audioCtx.destination);
@@ -319,7 +307,6 @@ masterVolume.oninput = () => {
 
 fxToggle.onchange = () => {
   fxEnabled = fxToggle.checked;
-  // Effet appliqué sur les prochaines lectures / export
 };
 
 highSlider.oninput = () => {
@@ -362,27 +349,12 @@ function createCoreDropBubble() {
   }
 }
 
-function createTrackBubble(trackTemp) {
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.id = "bubble-temp-" + trackTemp.id;
-
-  const title = document.createElement("div");
-  title.className = "bubble-title";
-  title.textContent = trackTemp.name;
-
-  bubble.appendChild(title);
-  bubbleContainer.appendChild(bubble);
-
-  enableDrag(bubble, trackTemp);
-}
-
-function enableDrag(bubble, trackTemp) {
+function enableDrag(bubble, tempTrack) {
   bubble.draggable = true;
 
   bubble.addEventListener("dragstart", () => {
     bubble.classList.add("dragging");
-    bubble.dataset.dragId = trackTemp.id;
+    bubble.dataset.dragId = tempTrack.id;
   });
 
   bubble.addEventListener("dragend", () => {
@@ -400,23 +372,23 @@ function enableCoreDrop(coreBubble) {
     coreBubble.classList.remove("core-highlight");
   });
 
-  coreBubble.addEventListener("drop", async (e) => {
+  coreBubble.addEventListener("drop", (e) => {
     e.preventDefault();
     coreBubble.classList.remove("core-highlight");
 
-    const dragId = document.querySelector(".bubble.dragging")?.dataset.dragId;
+    const dragging = document.querySelector(".bubble.dragging");
+    if (!dragging) return;
+    const dragId = dragging.dataset.dragId;
     if (!dragId) return;
 
-    const bubble = document.querySelector(`#bubble-temp-${dragId}`);
-    if (!bubble) return;
+    const bubble = document.getElementById("bubble-temp-" + dragId);
+    if (!bubble || !bubble._trackTemp) return;
 
-    const trackTemp = bubble._trackTemp;
-    if (!trackTemp || !trackTemp.buffer) return;
-
+    const temp = bubble._trackTemp;
     const track = {
-      id: trackTemp.id,
-      name: trackTemp.name,
-      buffer: trackTemp.buffer,
+      id: temp.id,
+      name: temp.name,
+      buffer: temp.buffer,
       volume: 1,
       isCore: false
     };
@@ -459,7 +431,6 @@ function addVolumeLine(track) {
 async function addBase(file) {
   const buffer = await fileToBuffer(file);
 
-  // Si un CORE existe déjà, on le remplace
   tracks = tracks.filter(t => !t.isCore);
 
   const coreTrack = {
@@ -471,7 +442,6 @@ async function addBase(file) {
   };
   tracks.unshift(coreTrack);
 
-  // Nettoie les anciennes lignes CORE
   const oldCoreLine = document.getElementById("vol-core");
   if (oldCoreLine) oldCoreLine.remove();
   addVolumeLine(coreTrack);
@@ -481,16 +451,6 @@ async function addBase(file) {
   playPauseBtn.disabled = false;
   recordBtn.disabled = false;
   playStatus.textContent = "CORE chargé.";
-}
-
-async function addTrackFile(file) {
-  const buffer = await fileToBuffer(file);
-  const temp = {
-    id: Math.random().toString(36).slice(2),
-    name: file.name,
-    buffer
-  };
-  const bubble = createTrackBubble(temp);
 }
 
 baseInput.onchange = e => {
@@ -532,25 +492,16 @@ function stopPlayback() {
   currentSources = [];
 }
 
-function getMaxDuration() {
-  if (tracks.length === 0) return 0;
-  let max = 0;
-  tracks.forEach(t => {
-    if (t.buffer) {
-      const d = t.buffer.duration;
-      if (d > max) max = d;
-    }
-  });
-  return max;
-}
-
 function playMix(offset = 0) {
   if (tracks.length === 0) return;
   ensureAudioContext();
   stopPlayback();
 
+  currentSources = [];
+
   tracks.forEach(track => {
     if (!track.buffer) return;
+
     const source = audioCtx.createBufferSource();
     source.buffer = track.buffer;
 
@@ -564,7 +515,12 @@ function playMix(offset = 0) {
     }
 
     source.start(0, offset);
-    currentSources.push({ id: track.id, source, gainNode });
+
+    currentSources.push({
+      id: track.id,
+      source,
+      gainNode
+    });
   });
 
   startTime = audioCtx.currentTime - offset;
@@ -587,15 +543,14 @@ playPauseBtn.onclick = () => {
     playStatus.textContent = "En pause.";
   }
 };
-
 function encodeMixToMp3() {
   if (tracks.length === 0) return null;
 
   const sampleRate = audioCtx ? audioCtx.sampleRate : 44100;
   let maxLength = 0;
   tracks.forEach(t => {
-    if (t.buffer) {
-      if (t.buffer.length > maxLength) maxLength = t.buffer.length;
+    if (t.buffer && t.buffer.length > maxLength) {
+      maxLength = t.buffer.length;
     }
   });
   if (maxLength === 0) return null;
@@ -621,14 +576,13 @@ function encodeMixToMp3() {
 
     highOff.connect(lowOff);
     lowOff.connect(masterOff);
-  } else {
-    // pas de filtres
   }
 
   masterOff.connect(offlineCtx.destination);
 
   tracks.forEach(track => {
     if (!track.buffer) return;
+
     const src = offlineCtx.createBufferSource();
     src.buffer = track.buffer;
 
@@ -712,7 +666,6 @@ exportBtn.onclick = () => {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 };
-</script>
-
+  </script>
 </body>
 </html>
