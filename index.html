@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Song 360 - fusion mixer</title>
+  <title>Song 360 Fusion Mixer</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <style>
     body {
@@ -20,13 +20,6 @@
       flex-direction: column;
       padding: 16px;
       box-sizing: border-box;
-    }
-
-    header {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      margin-bottom: 12px;
     }
 
     header h1 {
@@ -56,10 +49,6 @@
       cursor: default;
     }
 
-    input[type="file"] {
-      color: #ddd;
-    }
-
     .bubble-container {
       flex: 1;
       border-radius: 8px;
@@ -74,38 +63,33 @@
     }
 
     .bubble {
-      min-width: 120px;
+      min-width: 140px;
       max-width: 180px;
-      padding: 8px;
-      border-radius: 999px;
+      padding: 10px;
+      border-radius: 20px;
       background: rgba(59, 130, 246, 0.15);
       border: 1px solid rgba(59, 130, 246, 0.5);
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
       font-size: 12px;
     }
 
     .bubble-title {
       font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      text-align: center;
     }
 
-    .bubble-row {
+    .volume-row {
+      margin-top: 6px;
       display: flex;
-      align-items: center;
-      gap: 6px;
+      flex-direction: column;
+      gap: 4px;
     }
 
-    .bubble-row label {
+    .volume-row label {
       font-size: 11px;
       opacity: 0.8;
-    }
-
-    .bubble-row input[type="range"] {
-      flex: 1;
     }
 
     .side-panel {
@@ -134,310 +118,257 @@
       color: #9ca3af;
     }
 
-    .panel-section label {
-      font-size: 12px;
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    .panel-section select,
-    .panel-section input[type="range"] {
-      width: 100%;
-    }
-
     .status {
       font-size: 12px;
       opacity: 0.8;
       margin-top: 4px;
     }
-
-    .record-indicator {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: red;
-      margin-right: 6px;
-      animation: pulse 1s infinite;
-    }
-
-    @keyframes pulse {
-      0% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.4); opacity: 0.4; }
-      100% { transform: scale(1); opacity: 1; }
-    }
   </style>
 </head>
 <body>
+
   <div class="main">
-    <header>
-      <h1>Mixer Audio</h1>
-    </header>
+    <header><h1>Mixer Audio</h1></header>
 
     <div class="controls-row">
       <div>
-        <label for="baseSound">Son de base :</label>
+        <label>Son de base :</label>
         <input type="file" id="baseSound" accept="audio/*">
       </div>
 
       <div>
-        <label for="addTrack">Ajouter des fichiers MP3 :</label>
+        <label>Ajouter MP3 :</label>
         <input type="file" id="addTrack" accept="audio/*" multiple>
       </div>
 
       <div>
-        <button id="playAll" disabled>Lire / Pause</button>
-        <button id="recordBtn" disabled>Enregistrer le mix</button>
-        <button id="exportBtn" disabled>Exporter l'enregistrement</button>
+        <button id="playPauseBtn" disabled>Lecture</button>
+        <button id="recordBtn" disabled>Enregistrer</button>
+        <button id="exportBtn" disabled>Exporter</button>
       </div>
     </div>
 
-    <div class="bubble-container" id="bubbleContainer">
-      <!-- Bulles des pistes -->
-    </div>
+    <div class="bubble-container" id="bubbleContainer"></div>
   </div>
 
   <aside class="side-panel">
     <div class="panel-section">
       <h2>Mix global</h2>
-      <label for="masterVolume">Volume général</label>
+      <label>Volume général</label>
       <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="1">
       <div class="status" id="playStatus">Aucun son chargé.</div>
     </div>
 
     <div class="panel-section">
       <h2>Effets audio</h2>
-      <label for="effectSelect">Choisir un effet</label>
-      <select id="effectSelect" size="8">
-        <option>1. Reverb légère</option>
-        <option>2. Reverb grande salle</option>
-        <option>3. Echo court</option>
-        <option>4. Echo long</option>
-        <option>5. Chorus</option>
-        <option>6. Flanger</option>
-        <option>7. Phaser</option>
-        <option>8. Distorsion douce</option>
-        <option>9. Distorsion forte</option>
-        <option>10. Filtre passe-bas</option>
-        <option>11. Filtre passe-haut</option>
-        <option>12. Compresseur</option>
-        <option>13. Pitch +1 ton</option>
-        <option>14. Pitch -1 ton</option>
-        <option>15. Stéréo élargie</option>
+      <select id="effectSelect" size="10">
+        <option>Reverb légère</option>
+        <option>Reverb grande salle</option>
+        <option>Echo court</option>
+        <option>Echo long</option>
+        <option>Chorus</option>
+        <option>Flanger</option>
+        <option>Phaser</option>
+        <option>Distorsion douce</option>
+        <option>Distorsion forte</option>
+        <option>Filtre passe-bas</option>
+        <option>Filtre passe-haut</option>
+        <option>Compresseur</option>
+        <option>Pitch +1 ton</option>
+        <option>Pitch -1 ton</option>
+        <option>Stéréo élargie</option>
       </select>
-      <div class="status" id="effectStatus">
-        Effets listés à titre de démonstration (structure prête pour une vraie implémentation Web Audio).
-      </div>
     </div>
 
     <div class="panel-section">
       <h2>Enregistrement</h2>
-      <div id="recordStatus" class="status">En attente.</div>
+      <div class="status" id="recordStatus">En attente.</div>
     </div>
   </aside>
 
-  <script>
-    // --- Contexte audio ---
-    let audioCtx = null;
-    let masterGain = null;
-    let destinationNode = null; // pour enregistrement
-    let mediaRecorder = null;
-    let recordedChunks = [];
-    let isPlaying = false;
+<script>
+let audioCtx = null;
+let masterGain = null;
+let destinationNode = null;
+let mediaRecorder = null;
+let recordedChunks = [];
 
-    const tracks = []; // { name, buffer, gainNode, source, volume }
+let isPlaying = false;
+let startTime = 0;
+let pauseTime = 0;
 
-    const baseInput = document.getElementById('baseSound');
-    const addInput = document.getElementById('addTrack');
-    const bubbleContainer = document.getElementById('bubbleContainer');
-    const playAllBtn = document.getElementById('playAll');
-    const recordBtn = document.getElementById('recordBtn');
-    const exportBtn = document.getElementById('exportBtn');
-    const masterVolume = document.getElementById('masterVolume');
-    const playStatus = document.getElementById('playStatus');
-    const recordStatus = document.getElementById('recordStatus');
+const tracks = [];
 
-    function ensureAudioContext() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        masterGain = audioCtx.createGain();
-        masterGain.gain.value = parseFloat(masterVolume.value);
+const baseInput = document.getElementById("baseSound");
+const addInput = document.getElementById("addTrack");
+const bubbleContainer = document.getElementById("bubbleContainer");
+const playPauseBtn = document.getElementById("playPauseBtn");
+const recordBtn = document.getElementById("recordBtn");
+const exportBtn = document.getElementById("exportBtn");
+const masterVolume = document.getElementById("masterVolume");
+const playStatus = document.getElementById("playStatus");
+const recordStatus = document.getElementById("recordStatus");
 
-        // Destination pour écoute
-        const mainOut = audioCtx.destination;
+function ensureAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new AudioContext();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = masterVolume.value;
 
-        // Destination pour enregistrement (MediaStreamAudioDestinationNode)
-        destinationNode = audioCtx.createMediaStreamDestination();
+    destinationNode = audioCtx.createMediaStreamDestination();
+    masterGain.connect(audioCtx.destination);
+    masterGain.connect(destinationNode);
 
-        // On envoie le master vers les deux sorties
-        masterGain.connect(mainOut);
-        masterGain.connect(destinationNode);
+    mediaRecorder = new MediaRecorder(destinationNode.stream);
+    mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+    mediaRecorder.onstop = () => exportBtn.disabled = false;
+  }
+}
 
-        // MediaRecorder sur le stream du mix
-        mediaRecorder = new MediaRecorder(destinationNode.stream);
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) recordedChunks.push(e.data);
-        };
-        mediaRecorder.onstop = () => {
-          recordStatus.innerHTML = 'Enregistrement terminé. Vous pouvez exporter.';
-          exportBtn.disabled = recordedChunks.length === 0;
-        };
-      }
+masterVolume.oninput = () => {
+  if (masterGain) masterGain.gain.value = masterVolume.value;
+};
+
+async function fileToBuffer(file) {
+  ensureAudioContext();
+  const arrayBuffer = await file.arrayBuffer();
+  return await audioCtx.decodeAudioData(arrayBuffer);
+}
+
+function createBubble(track) {
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+
+  const title = document.createElement("div");
+  title.className = "bubble-title";
+  title.textContent = track.isBase ? "CORE" : track.name;
+
+  const volumeRow = document.createElement("div");
+  volumeRow.className = "volume-row";
+
+  const label = document.createElement("label");
+  label.textContent = "Volume";
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = 0;
+  slider.max = 1;
+  slider.step = 0.01;
+  slider.value = track.volume;
+
+  slider.oninput = () => {
+    track.volume = slider.value;
+    if (track.gainNode) track.gainNode.gain.value = track.volume;
+  };
+
+  volumeRow.appendChild(label);
+  volumeRow.appendChild(slider);
+
+  bubble.appendChild(title);
+  bubble.appendChild(volumeRow);
+
+  bubbleContainer.appendChild(bubble);
+}
+
+async function addTrack(file, isBase = false) {
+  const buffer = await fileToBuffer(file);
+
+  const track = {
+    name: file.name,
+    buffer,
+    gainNode: null,
+    source: null,
+    volume: 1,
+    isBase
+  };
+
+  tracks.push(track);
+  createBubble(track);
+
+  playPauseBtn.disabled = false;
+  recordBtn.disabled = false;
+  playStatus.textContent = "Pistes chargées.";
+}
+
+baseInput.onchange = e => {
+  if (e.target.files[0]) addTrack(e.target.files[0], true);
+};
+
+addInput.onchange = e => {
+  [...e.target.files].forEach(f => addTrack(f));
+};
+
+function stopAll() {
+  tracks.forEach(t => {
+    if (t.source) {
+      try { t.source.stop(); } catch {}
+      t.source.disconnect();
     }
+    if (t.gainNode) t.gainNode.disconnect();
+    t.source = null;
+    t.gainNode = null;
+  });
+}
 
-    masterVolume.addEventListener('input', () => {
-      if (masterGain) {
-        masterGain.gain.value = parseFloat(masterVolume.value);
-      }
-    });
+function playAll(offset = 0) {
+  ensureAudioContext();
+  stopAll();
 
-    function createTrackBubble(track) {
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
+  startTime = audioCtx.currentTime - offset;
 
-      const title = document.createElement('div');
-      title.className = 'bubble-title';
-      title.textContent = track.name;
+  tracks.forEach(t => {
+    const src = audioCtx.createBufferSource();
+    src.buffer = t.buffer;
 
-      const row = document.createElement('div');
-      row.className = 'bubble-row';
+    const gain = audioCtx.createGain();
+    gain.gain.value = t.volume;
 
-      const label = document.createElement('label');
-      label.textContent = 'Volume';
+    src.connect(gain);
+    gain.connect(masterGain);
 
-      const slider = document.createElement('input');
-      slider.type = 'range';
-      slider.min = '0';
-      slider.max = '1';
-      slider.step = '0.01';
-      slider.value = track.volume;
+    src.start(0, offset);
 
-      slider.addEventListener('input', () => {
-        track.volume = parseFloat(slider.value);
-        if (track.gainNode) {
-          track.gainNode.gain.value = track.volume;
-        }
-      });
+    t.source = src;
+    t.gainNode = gain;
+  });
+}
 
-      row.appendChild(label);
-      row.appendChild(slider);
+playPauseBtn.onclick = () => {
+  if (!isPlaying) {
+    playAll(pauseTime);
+    isPlaying = true;
+    playPauseBtn.textContent = "Pause";
+    playStatus.textContent = "Lecture en cours.";
+  } else {
+    pauseTime = audioCtx.currentTime - startTime;
+    stopAll();
+    isPlaying = false;
+    playPauseBtn.textContent = "Lecture";
+    playStatus.textContent = "En pause.";
+  }
+};
 
-      bubble.appendChild(title);
-      bubble.appendChild(row);
+recordBtn.onclick = () => {
+  if (mediaRecorder.state === "inactive") {
+    recordedChunks = [];
+    mediaRecorder.start();
+    recordStatus.textContent = "Enregistrement...";
+  } else {
+    mediaRecorder.stop();
+    recordStatus.textContent = "Terminé.";
+  }
+};
 
-      bubbleContainer.appendChild(bubble);
-    }
+exportBtn.onclick = () => {
+  const blob = new Blob(recordedChunks, { type: "audio/webm" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "mix.webm";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+</script>
 
-    async function fileToBuffer(file) {
-      ensureAudioContext();
-      const arrayBuffer = await file.arrayBuffer();
-      return await audioCtx.decodeAudioData(arrayBuffer);
-    }
-
-    async function addTrackFromFile(file, isBase = false) {
-      const buffer = await fileToBuffer(file);
-      const track = {
-        name: (isBase ? '[Base] ' : '') + file.name,
-        buffer,
-        gainNode: null,
-        source: null,
-        volume: 1
-      };
-      tracks.push(track);
-      createTrackBubble(track);
-      playAllBtn.disabled = false;
-      recordBtn.disabled = false;
-      playStatus.textContent = 'Pistes chargées. Prêt à lire.';
-    }
-
-    baseInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        await addTrackFromFile(file, true);
-      }
-    });
-
-    addInput.addEventListener('change', async (e) => {
-      const files = Array.from(e.target.files);
-      for (const f of files) {
-        await addTrackFromFile(f, false);
-      }
-    });
-
-    function stopAllSources() {
-      tracks.forEach(t => {
-        if (t.source) {
-          try { t.source.stop(); } catch {}
-          t.source.disconnect();
-          t.source = null;
-        }
-        if (t.gainNode) {
-          t.gainNode.disconnect();
-          t.gainNode = null;
-        }
-      });
-    }
-
-    function startAllSources() {
-      ensureAudioContext();
-      stopAllSources();
-      const now = audioCtx.currentTime;
-      tracks.forEach(t => {
-        const source = audioCtx.createBufferSource();
-        source.buffer = t.buffer;
-
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = t.volume;
-
-        source.connect(gainNode);
-        gainNode.connect(masterGain);
-
-        source.start(now);
-
-        t.source = source;
-        t.gainNode = gainNode;
-      });
-    }
-
-    playAllBtn.addEventListener('click', () => {
-      if (!audioCtx) ensureAudioContext();
-
-      if (!isPlaying) {
-        startAllSources();
-        isPlaying = true;
-        playAllBtn.textContent = 'Relancer / Rejouer';
-        playStatus.textContent = 'Lecture en cours.';
-      } else {
-        // On relance simplement depuis le début
-        startAllSources();
-        playStatus.textContent = 'Lecture relancée.';
-      }
-    });
-
-    recordBtn.addEventListener('click', () => {
-      if (!mediaRecorder) return;
-      if (mediaRecorder.state === 'inactive') {
-        recordedChunks = [];
-        mediaRecorder.start();
-        recordStatus.innerHTML = '<span class="record-indicator"></span>Enregistrement en cours...';
-      } else if (mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-        recordStatus.textContent = 'Arrêt de l\'enregistrement...';
-      }
-    });
-
-    exportBtn.addEventListener('click', () => {
-      if (!recordedChunks.length) return;
-      const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'mix_enregistrement.webm';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    });
-  </script>
 </body>
 </html>
