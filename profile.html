@@ -1,53 +1,22 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
 <meta charset="UTF-8">
 <title>Profil</title>
 <link rel="icon" href="favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-body{
- background:#020617;
- color:white;
- font-family:Arial;
- display:flex;
- justify-content:center;
- align-items:center;
- height:100vh;
-}
-.card{
- background:#111827;
- padding:30px;
- border-radius:15px;
- text-align:center;
- width:300px;
-}
-input{
- width:90%;
- padding:10px;
- margin:5px;
-}
-button{
- padding:10px;
- margin:5px;
- background:#38bdf8;
- border:none;
- cursor:pointer;
-}
-</style>
 </head>
 
-<body>
+<body style="background:#020617;color:white;text-align:center;font-family:Arial;">
 
-<div class="card">
-<h2>👤 Compte</h2>
+<h2>👤 Compte Song360</h2>
 
-<input id="email" placeholder="email">
-<input id="password" type="password" placeholder="mot de passe">
+<input id="email" placeholder="email"><br>
+<input id="password" type="password" placeholder="mdp"><br>
 
-<button onclick="signup()">Créer</button>
+<button onclick="signup()">Créer compte</button>
 <button onclick="login()">Login</button>
+<button onclick="logout()">Logout</button>
 
 <p id="status"></p>
 
@@ -55,7 +24,6 @@ button{
 
 <button onclick="go('mixer.html')">🎧 Mixer</button>
 <button onclick="go('cloud.html')">☁️ Cloud</button>
-</div>
 
 <script>
 const supabase = window.supabase.createClient(
@@ -63,26 +31,39 @@ const supabase = window.supabase.createClient(
  "sb_publishable_pJJjozADUUOFcBp3uut0dg_yH2SVm8V"
 );
 
+let user = null;
+
 async function signup(){
- await supabase.auth.signUp({
-  email:email.value,
-  password:password.value
+ const {error} = await supabase.auth.signUp({
+  email: email.value,
+  password: password.value
  });
+
+ if(error) return alert(error.message);
  alert("Compte créé !");
 }
 
 async function login(){
- const {data,error}=await supabase.auth.signInWithPassword({
-  email:email.value,
-  password:password.value
+ const {data,error} = await supabase.auth.signInWithPassword({
+  email: email.value,
+  password: password.value
  });
- if(error)return alert(error.message);
 
- localStorage.setItem("user",JSON.stringify(data.user));
- status.innerText="Connecté";
+ if(error) return alert(error.message);
+
+ user = data.user;
+ localStorage.setItem("user", JSON.stringify(user));
+
+ status.innerText = "Connecté : " + user.email;
 }
 
-function go(p){window.location=p;}
+async function logout(){
+ await supabase.auth.signOut();
+ localStorage.removeItem("user");
+ status.innerText = "Déconnecté";
+}
+
+function go(p){ window.location = p; }
 </script>
 
 </body>
