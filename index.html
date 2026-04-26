@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Song 360 Fusion Mixer</title>
+  <title>Mixer Audio DJ</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <style>
     body {
@@ -161,21 +161,54 @@
     input:checked + .slider-round:before {
       transform: translateX(22px);
     }
+    .volume-panel {
+      margin-top: 10px;
+      border-top: 1px solid #333;
+      padding-top: 8px;
+      background: #020617;
+      max-height: 180px;
+      overflow-y: auto;
+      border-radius: 8px;
+    }
+    .volume-panel h2 {
+      margin: 0 0 6px 0;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #9ca3af;
+    }
+    .volume-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    .volume-line span {
+      min-width: 80px;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .volume-line input[type="range"] {
+      flex: 1;
+    }
   </style>
 </head>
 <body>
 
   <div class="main">
-    <header><h1>Mixer Audio</h1></header>
+    <header><h1>Mixer Audio DJ</h1></header>
 
     <div class="controls-row">
       <div>
-        <label>Son de base :</label>
+        <label>Son de base (CORE) :</label>
         <input type="file" id="baseSound" accept="audio/*">
       </div>
 
       <div>
-        <label>Ajouter MP3 :</label>
+        <label>Ajouter sons :</label>
         <input type="file" id="addTrack" accept="audio/*" multiple>
       </div>
 
@@ -187,13 +220,18 @@
     </div>
 
     <div class="bubble-container" id="bubbleContainer"></div>
+
+    <div class="volume-panel" id="volumePanel">
+      <h2>Volumes du mix</h2>
+      <!-- lignes de volume ajoutées dynamiquement -->
+    </div>
   </div>
 
   <aside class="side-panel">
     <div class="panel-section">
       <h2>Mix global</h2>
-      <label>Volume CORE</label>
-      <input type="range" id="coreVolume" min="0" max="1" step="0.01" value="1">
+      <label>Volume master</label>
+      <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="1">
       <div class="status" id="playStatus">Aucun son chargé.</div>
     </div>
 
@@ -211,7 +249,7 @@
       <label for="lowSlider">LOW (passe-bas)</label>
       <input type="range" id="lowSlider" min="0" max="1" step="0.01" value="0">
 
-      <div class="status">HIGH/LOW agissent sur CORE seulement si l’interrupteur est ON.</div>
+      <div class="status">HIGH/LOW agissent sur tout le mix si l’interrupteur est ON.</div>
     </div>
 
     <div class="panel-section">
@@ -224,21 +262,18 @@
 
 <script>
 let audioCtx = null;
-let coreGain = null;
+let masterGain = null;
 let highFilter = null;
 let lowFilter = null;
 
-let coreBuffer = null;
-let coreSource = null;
 let isPlaying = false;
 let startTime = 0;
 let pauseTime = 0;
 
-const tracks = []; // {id, name, buffer}
-let draggedTrack = null;
-
-let mp3Blob = null;
+let tracks = []; // {id, name, buffer, volume, isCore}
+let currentSources = []; // {id, source, gainNode}
 let fxEnabled = false;
+let mp3Blob = null;
 
 const baseInput = document.getElementById("baseSound");
 const addInput = document.getElementById("addTrack");
@@ -246,12 +281,13 @@ const bubbleContainer = document.getElementById("bubbleContainer");
 const playPauseBtn = document.getElementById("playPauseBtn");
 const recordBtn = document.getElementById("recordBtn");
 const exportBtn = document.getElementById("exportBtn");
-const coreVolume = document.getElementById("coreVolume");
+const masterVolume = document.getElementById("masterVolume");
 const playStatus = document.getElementById("playStatus");
 const recordStatus = document.getElementById("recordStatus");
 const fxToggle = document.getElementById("fxToggle");
 const highSlider = document.getElementById("highSlider");
 const lowSlider = document.getElementById("lowSlider");
+const volumePanel = document.getElementById("volumePanel");
 
 exportBtn.disabled = true;
 
@@ -259,8 +295,8 @@ function ensureAudioContext() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    coreGain = audioCtx.createGain();
-    coreGain.gain.value = coreVolume.value;
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = masterVolume.value;
 
     highFilter = audioCtx.createBiquadFilter();
     highFilter.type = "highpass";
@@ -270,17 +306,20 @@ function ensureAudioContext() {
     lowFilter.type = "lowpass";
     lowFilter.frequency.value = 20000;
 
-    coreGain.connect(audioCtx.destination);
+    // Chaîne par défaut : filtres -> master -> sortie
+    highFilter.connect(lowFilter);
+    lowFilter.connect(masterGain);
+    masterGain.connect(audioCtx.destination);
   }
 }
 
-coreVolume.oninput = () => {
-  if (coreGain) coreGain.gain.value = coreVolume.value;
+masterVolume.oninput = () => {
+  if (masterGain) masterGain.gain.value = masterVolume.value;
 };
 
 fxToggle.onchange = () => {
   fxEnabled = fxToggle.checked;
-  connectCoreGraph();
+  // Effet appliqué sur les prochaines lectures / export
 };
 
 highSlider.oninput = () => {
@@ -299,95 +338,55 @@ lowSlider.oninput = () => {
   lowFilter.frequency.value = maxF - v * (maxF - minF);
 };
 
-function connectCoreGraph() {
-  if (!coreSource || !coreGain || !highFilter || !lowFilter) return;
-
-  try { coreSource.disconnect(); } catch {}
-  try { highFilter.disconnect(); } catch {}
-  try { lowFilter.disconnect(); } catch {}
-
-  if (fxEnabled) {
-    coreSource.connect(highFilter);
-    highFilter.connect(lowFilter);
-    lowFilter.connect(coreGain);
-  } else {
-    coreSource.connect(coreGain);
-  }
-}
-
 async function fileToBuffer(file) {
   ensureAudioContext();
   const arrayBuffer = await file.arrayBuffer();
   return await audioCtx.decodeAudioData(arrayBuffer);
 }
 
-function createCoreBubble() {
-  const oldCore = document.getElementById("core-bubble");
-  if (oldCore) oldCore.remove();
+function createCoreDropBubble() {
+  let coreBubble = document.getElementById("core-bubble");
+  if (!coreBubble) {
+    coreBubble = document.createElement("div");
+    coreBubble.className = "bubble core";
+    coreBubble.id = "core-bubble";
 
-  const bubble = document.createElement("div");
-  bubble.className = "bubble core";
-  bubble.id = "core-bubble";
+    const title = document.createElement("div");
+    title.className = "bubble-title";
+    title.textContent = "CORE (dépose ici pour ajouter au mix)";
 
-  const title = document.createElement("div");
-  title.className = "bubble-title";
-  title.textContent = "CORE";
+    coreBubble.appendChild(title);
+    bubbleContainer.appendChild(coreBubble);
 
-  const volumeRow = document.createElement("div");
-  volumeRow.className = "volume-row";
-
-  const label = document.createElement("label");
-  label.textContent = "Volume CORE";
-
-  const slider = document.createElement("input");
-  slider.type = "range";
-  slider.min = 0;
-  slider.max = 1;
-  slider.step = 0.01;
-  slider.value = coreVolume.value;
-
-  slider.oninput = () => {
-    coreVolume.value = slider.value;
-    if (coreGain) coreGain.gain.value = slider.value;
-  };
-
-  volumeRow.appendChild(label);
-  volumeRow.appendChild(slider);
-
-  bubble.appendChild(title);
-  bubble.appendChild(volumeRow);
-
-  bubbleContainer.appendChild(bubble);
-
-  enableCoreDrop(bubble);
+    enableCoreDrop(coreBubble);
+  }
 }
 
-function createTrackBubble(track) {
+function createTrackBubble(trackTemp) {
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.id = "bubble-" + track.id;
+  bubble.id = "bubble-temp-" + trackTemp.id;
 
   const title = document.createElement("div");
   title.className = "bubble-title";
-  title.textContent = track.name;
+  title.textContent = trackTemp.name;
 
   bubble.appendChild(title);
   bubbleContainer.appendChild(bubble);
 
-  enableDrag(bubble, track);
+  enableDrag(bubble, trackTemp);
 }
 
-function enableDrag(bubble, track) {
+function enableDrag(bubble, trackTemp) {
   bubble.draggable = true;
 
   bubble.addEventListener("dragstart", () => {
-    draggedTrack = track;
     bubble.classList.add("dragging");
+    bubble.dataset.dragId = trackTemp.id;
   });
 
   bubble.addEventListener("dragend", () => {
     bubble.classList.remove("dragging");
-    draggedTrack = null;
   });
 }
 
@@ -401,40 +400,97 @@ function enableCoreDrop(coreBubble) {
     coreBubble.classList.remove("core-highlight");
   });
 
-  coreBubble.addEventListener("drop", async () => {
+  coreBubble.addEventListener("drop", async (e) => {
+    e.preventDefault();
     coreBubble.classList.remove("core-highlight");
-    if (!draggedTrack || !coreBuffer) return;
 
-    await fuseTrackIntoCore(draggedTrack);
+    const dragId = document.querySelector(".bubble.dragging")?.dataset.dragId;
+    if (!dragId) return;
 
-    const bubble = document.getElementById("bubble-" + draggedTrack.id);
-    if (bubble) bubble.remove();
+    const bubble = document.querySelector(`#bubble-temp-${dragId}`);
+    if (!bubble) return;
 
-    const idx = tracks.findIndex(t => t.id === draggedTrack.id);
-    if (idx !== -1) tracks.splice(idx, 1);
+    const trackTemp = bubble._trackTemp;
+    if (!trackTemp || !trackTemp.buffer) return;
 
-    playStatus.textContent = "Son fusionné dans CORE.";
+    const track = {
+      id: trackTemp.id,
+      name: trackTemp.name,
+      buffer: trackTemp.buffer,
+      volume: 1,
+      isCore: false
+    };
+    tracks.push(track);
+    addVolumeLine(track);
+
+    bubble.remove();
+    playStatus.textContent = "Piste ajoutée au mix.";
   });
 }
 
+function addVolumeLine(track) {
+  const line = document.createElement("div");
+  line.className = "volume-line";
+  line.id = "vol-" + track.id;
+
+  const label = document.createElement("span");
+  label.textContent = track.isCore ? "CORE" : track.name;
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = 0;
+  slider.max = 1;
+  slider.step = 0.01;
+  slider.value = track.volume;
+
+  slider.oninput = () => {
+    track.volume = parseFloat(slider.value);
+    const srcObj = currentSources.find(s => s.id === track.id);
+    if (srcObj && srcObj.gainNode) {
+      srcObj.gainNode.gain.value = track.volume;
+    }
+  };
+
+  line.appendChild(label);
+  line.appendChild(slider);
+  volumePanel.appendChild(line);
+}
+
 async function addBase(file) {
-  coreBuffer = await fileToBuffer(file);
-  createCoreBubble();
+  const buffer = await fileToBuffer(file);
+
+  // Si un CORE existe déjà, on le remplace
+  tracks = tracks.filter(t => !t.isCore);
+
+  const coreTrack = {
+    id: "core",
+    name: file.name,
+    buffer,
+    volume: 1,
+    isCore: true
+  };
+  tracks.unshift(coreTrack);
+
+  // Nettoie les anciennes lignes CORE
+  const oldCoreLine = document.getElementById("vol-core");
+  if (oldCoreLine) oldCoreLine.remove();
+  addVolumeLine(coreTrack);
+
+  createCoreDropBubble();
+
   playPauseBtn.disabled = false;
   recordBtn.disabled = false;
   playStatus.textContent = "CORE chargé.";
 }
 
-async function addTrack(file) {
+async function addTrackFile(file) {
   const buffer = await fileToBuffer(file);
-  const track = {
+  const temp = {
     id: Math.random().toString(36).slice(2),
     name: file.name,
     buffer
   };
-  tracks.push(track);
-  createTrackBubble(track);
-  playStatus.textContent = "Piste ajoutée (fusionne-la dans CORE pour l'entendre).";
+  const bubble = createTrackBubble(temp);
 }
 
 baseInput.onchange = e => {
@@ -443,128 +499,206 @@ baseInput.onchange = e => {
 };
 
 addInput.onchange = e => {
-  [...e.target.files].forEach(f => addTrack(f));
+  [...e.target.files].forEach(async f => {
+    const buffer = await fileToBuffer(f);
+    const temp = {
+      id: Math.random().toString(36).slice(2),
+      name: f.name,
+      buffer
+    };
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.id = "bubble-temp-" + temp.id;
+
+    const title = document.createElement("div");
+    title.className = "bubble-title";
+    title.textContent = temp.name;
+
+    bubble.appendChild(title);
+    bubbleContainer.appendChild(bubble);
+
+    bubble._trackTemp = temp;
+    enableDrag(bubble, temp);
+
+    playStatus.textContent = "Piste prête, dépose-la sur CORE pour l'ajouter au mix.";
+  });
 };
 
-function stopCore() {
-  if (coreSource) {
-    try { coreSource.stop(); } catch {}
-    try { coreSource.disconnect(); } catch {}
-    coreSource = null;
-  }
+function stopPlayback() {
+  currentSources.forEach(s => {
+    try { s.source.stop(); } catch {}
+    try { s.source.disconnect(); } catch {}
+  });
+  currentSources = [];
 }
 
-function playCore(offset = 0) {
-  if (!coreBuffer) return;
+function getMaxDuration() {
+  if (tracks.length === 0) return 0;
+  let max = 0;
+  tracks.forEach(t => {
+    if (t.buffer) {
+      const d = t.buffer.duration;
+      if (d > max) max = d;
+    }
+  });
+  return max;
+}
+
+function playMix(offset = 0) {
+  if (tracks.length === 0) return;
   ensureAudioContext();
-  stopCore();
+  stopPlayback();
 
-  coreSource = audioCtx.createBufferSource();
-  coreSource.buffer = coreBuffer;
+  tracks.forEach(track => {
+    if (!track.buffer) return;
+    const source = audioCtx.createBufferSource();
+    source.buffer = track.buffer;
 
-  connectCoreGraph();
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.value = track.volume;
+
+    if (fxEnabled) {
+      gainNode.connect(highFilter);
+    } else {
+      gainNode.connect(masterGain);
+    }
+
+    source.start(0, offset);
+    currentSources.push({ id: track.id, source, gainNode });
+  });
 
   startTime = audioCtx.currentTime - offset;
-  coreSource.start(0, offset);
 }
 
 playPauseBtn.onclick = () => {
-  if (!coreBuffer) return;
+  if (tracks.length === 0) return;
   ensureAudioContext();
 
   if (!isPlaying) {
-    playCore(pauseTime);
+    playMix(pauseTime);
     isPlaying = true;
     playPauseBtn.textContent = "Pause";
-    playStatus.textContent = "Lecture CORE.";
+    playStatus.textContent = "Lecture du mix.";
   } else {
     pauseTime = audioCtx.currentTime - startTime;
-    stopCore();
+    stopPlayback();
     isPlaying = false;
     playPauseBtn.textContent = "Lecture";
     playStatus.textContent = "En pause.";
   }
 };
 
-async function fuseTrackIntoCore(track) {
-  if (!coreBuffer || !track.buffer) return;
+function encodeMixToMp3() {
+  if (tracks.length === 0) return null;
 
-  const sampleRate = coreBuffer.sampleRate;
-  const length = Math.max(coreBuffer.length, track.buffer.length);
-
-  const offlineCtx = new OfflineAudioContext(1, length, sampleRate);
-
-  const coreSrc = offlineCtx.createBufferSource();
-  coreSrc.buffer = coreBuffer;
-  coreSrc.connect(offlineCtx.destination);
-  coreSrc.start(0);
-
-  const trackSrc = offlineCtx.createBufferSource();
-  trackSrc.buffer = track.buffer;
-  trackSrc.connect(offlineCtx.destination);
-  trackSrc.start(0);
-
-  const rendered = await offlineCtx.startRendering();
-  coreBuffer = rendered;
-  pauseTime = 0;
-}
-
-function encodeCoreToMp3() {
-  if (!coreBuffer) return null;
-
-  const numChannels = coreBuffer.numberOfChannels;
-  const sampleRate = coreBuffer.sampleRate;
-  const left = coreBuffer.getChannelData(0);
-  let samples = left;
-
-  if (numChannels > 1) {
-    const right = coreBuffer.getChannelData(1);
-    const len = left.length;
-    const mixed = new Float32Array(len);
-    for (let i = 0; i < len; i++) {
-      mixed[i] = (left[i] + right[i]) / 2;
+  const sampleRate = audioCtx ? audioCtx.sampleRate : 44100;
+  let maxLength = 0;
+  tracks.forEach(t => {
+    if (t.buffer) {
+      if (t.buffer.length > maxLength) maxLength = t.buffer.length;
     }
-    samples = mixed;
+  });
+  if (maxLength === 0) return null;
+
+  const offlineCtx = new OfflineAudioContext(1, maxLength, sampleRate);
+
+  const masterOff = offlineCtx.createGain();
+  masterOff.gain.value = parseFloat(masterVolume.value);
+
+  let highOff = null;
+  let lowOff = null;
+
+  if (fxEnabled) {
+    highOff = offlineCtx.createBiquadFilter();
+    highOff.type = "highpass";
+    const vH = parseFloat(highSlider.value);
+    highOff.frequency.value = 20 + vH * (2000 - 20);
+
+    lowOff = offlineCtx.createBiquadFilter();
+    lowOff.type = "lowpass";
+    const vL = parseFloat(lowSlider.value);
+    lowOff.frequency.value = 20000 - vL * (20000 - 500);
+
+    highOff.connect(lowOff);
+    lowOff.connect(masterOff);
+  } else {
+    // pas de filtres
   }
 
-  const mp3Encoder = new lamejs.Mp3Encoder(1, sampleRate, 192);
-  const blockSize = 1152;
-  const mp3Data = [];
+  masterOff.connect(offlineCtx.destination);
 
-  let i = 0;
-  while (i < samples.length) {
-    const chunk = samples.subarray(i, i + blockSize);
-    const buffer = new Int16Array(chunk.length);
-    for (let j = 0; j < chunk.length; j++) {
-      let s = Math.max(-1, Math.min(1, chunk[j]));
-      buffer[j] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  tracks.forEach(track => {
+    if (!track.buffer) return;
+    const src = offlineCtx.createBufferSource();
+    src.buffer = track.buffer;
+
+    const g = offlineCtx.createGain();
+    g.gain.value = track.volume;
+
+    if (fxEnabled) {
+      g.connect(highOff);
+    } else {
+      g.connect(masterOff);
     }
-    const mp3buf = mp3Encoder.encodeBuffer(buffer);
-    if (mp3buf.length > 0) mp3Data.push(mp3buf);
-    i += blockSize;
-  }
 
-  const end = mp3Encoder.flush();
-  if (end.length > 0) mp3Data.push(end);
+    src.start(0);
+  });
 
-  return new Blob(mp3Data, { type: "audio/mpeg" });
+  return offlineCtx.startRendering().then(renderedBuffer => {
+    const numChannels = renderedBuffer.numberOfChannels;
+    const left = renderedBuffer.getChannelData(0);
+    let samples = left;
+
+    if (numChannels > 1) {
+      const right = renderedBuffer.getChannelData(1);
+      const len = left.length;
+      const mixed = new Float32Array(len);
+      for (let i = 0; i < len; i++) {
+        mixed[i] = (left[i] + right[i]) / 2;
+      }
+      samples = mixed;
+    }
+
+    const mp3Encoder = new lamejs.Mp3Encoder(1, sampleRate, 192);
+    const blockSize = 1152;
+    const mp3Data = [];
+
+    let i = 0;
+    while (i < samples.length) {
+      const chunk = samples.subarray(i, i + blockSize);
+      const buffer = new Int16Array(chunk.length);
+      for (let j = 0; j < chunk.length; j++) {
+        let s = Math.max(-1, Math.min(1, chunk[j]));
+        buffer[j] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      const mp3buf = mp3Encoder.encodeBuffer(buffer);
+      if (mp3buf.length > 0) mp3Data.push(mp3buf);
+      i += blockSize;
+    }
+
+    const end = mp3Encoder.flush();
+    if (end.length > 0) mp3Data.push(end);
+
+    return new Blob(mp3Data, { type: "audio/mpeg" });
+  });
 }
 
 recordBtn.onclick = () => {
-  if (!coreBuffer) {
-    recordStatus.textContent = "Aucun CORE à enregistrer.";
+  if (tracks.length === 0) {
+    recordStatus.textContent = "Aucun mix à enregistrer.";
     return;
   }
+  ensureAudioContext();
   recordStatus.textContent = "Encodage MP3 en cours...";
-  setTimeout(() => {
-    mp3Blob = encodeCoreToMp3();
-    if (mp3Blob) {
+  encodeMixToMp3().then(blob => {
+    if (blob) {
+      mp3Blob = blob;
       recordStatus.textContent = "MP3 prêt. Clique sur Exporter.";
       exportBtn.disabled = false;
     } else {
       recordStatus.textContent = "Erreur encodage MP3.";
     }
-  }, 10);
+  });
 };
 
 exportBtn.onclick = () => {
@@ -572,7 +706,7 @@ exportBtn.onclick = () => {
   const url = URL.createObjectURL(mp3Blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "mix_core.mp3";
+  a.download = "mix_dj.mp3";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
