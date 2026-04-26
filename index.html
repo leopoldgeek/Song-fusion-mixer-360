@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Song 360 Ableton Web</title>
+<title>Song 360 Fusion Mixer</title>
 
 <!-- ⭐ FAVICON -->
 <link rel="icon" type="image/png" href="favicon.png">
@@ -62,7 +62,7 @@ button {
   z-index: 2;
 }
 
-/* TRACK BUBBLES */
+/* TRACKS */
 .track {
   position: absolute;
   width: 120px;
@@ -72,10 +72,7 @@ button {
   padding: 5px;
   cursor: grab;
   transition: 0.2s;
-}
-
-.track span {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 /* LIBRARY */
@@ -83,7 +80,7 @@ button {
   position: absolute;
   right: 0;
   top: 0;
-  width: 220px;
+  width: 240px;
   height: 100vh;
   background: #0f1629;
   overflow-y: auto;
@@ -104,26 +101,26 @@ button {
   background: #2b6cff;
 }
 
-/* BOTTOM */
+/* BOTTOM MIXER */
 #bottom {
   height: 80px;
   background: #0f1629;
   display: flex;
   align-items: center;
   padding: 10px;
-  gap: 20px;
+  gap: 15px;
   position: relative;
   z-index: 5;
 }
 
 .eq {
-  font-size: 12px;
+  font-size: 11px;
   display: flex;
   flex-direction: column;
 }
 
 input[type=range] {
-  width: 120px;
+  width: 110px;
 }
 </style>
 </head>
@@ -135,11 +132,11 @@ input[type=range] {
 <!-- TOP -->
 <div id="topbar">
   <div>
-    <button onclick="file.click()">➕ Add</button>
+    <button onclick="file.click()">➕ Add Sound</button>
     <button onclick="playAll()">▶ Play</button>
     <button onclick="pauseAll()">⏸ Pause</button>
   </div>
-  <div>🎧 SONG 360 ABLETON WEB</div>
+  <div>🎧 SONG 360 Fusion Mixer</div>
 </div>
 
 <!-- CENTER -->
@@ -188,7 +185,7 @@ input[type=range] {
 
 const ctx = new AudioContext();
 
-/* MASTER CLEAN */
+/* MASTER */
 const master = ctx.createGain();
 master.gain.value = 0.85;
 
@@ -199,7 +196,7 @@ comp.ratio.value = 10;
 master.connect(comp);
 comp.connect(ctx.destination);
 
-/* FX EQ */
+/* EQ */
 const bass = ctx.createBiquadFilter();
 bass.type = "lowshelf";
 bass.frequency.value = 200;
@@ -220,11 +217,12 @@ treble.connect(comp);
 /* DATA */
 let tracks = [];
 let samples = [];
+let gainNodes = [];
 
 let BPM = 120;
 let pitch = 1;
 
-/* FILE */
+/* FILE INPUT */
 file.onchange = async e=>{
   for(let f of e.target.files){
     let buf = await f.arrayBuffer();
@@ -240,11 +238,18 @@ file.onchange = async e=>{
 function createTrack(name, buffer){
 
   let id = samples.length;
+
   samples.push({name, buffer});
 
+  /* GAIN PISTE */
+  let gain = ctx.createGain();
+  gain.gain.value = 0.8;
+  gainNodes[id] = gain;
+
+  /* TRACK VISUEL */
   let div = document.createElement("div");
   div.className = "track";
-  div.innerHTML = `<span>${name}</span>`;
+  div.innerText = name;
 
   div.style.left = Math.random()*400 + "px";
   div.style.top = Math.random()*200 + "px";
@@ -252,18 +257,31 @@ function createTrack(name, buffer){
   div.onclick = ()=> preview(id, div);
 
   canvas.appendChild(div);
-  tracks.push({buffer, div});
 
+  tracks.push({buffer, div, id});
+
+  /* LIBRARY ITEM + SLIDER */
   let item = document.createElement("div");
   item.className = "sample";
-  item.innerText = name;
+
+  item.innerHTML = `
+    <div>${name}</div>
+    <input type="range" min="0" max="2" step="0.01" value="0.8">
+  `;
+
+  let slider = item.querySelector("input");
+
+  slider.oninput = e=>{
+    gainNodes[id].gain.value = e.target.value;
+  };
+
   item.onclick = ()=> preview(id, div);
 
   library.appendChild(item);
 }
 
 /* =========================
-   PREVIEW SOUND
+   PREVIEW AUDIO
 ========================= */
 
 function preview(id, div){
@@ -276,7 +294,7 @@ function preview(id, div){
   src.playbackRate.value = pitch;
 
   let g = ctx.createGain();
-  g.gain.value = 1;
+  g.gain.value = gainNodes[id]?.gain.value || 0.8;
 
   src.connect(g);
   g.connect(master);
@@ -307,13 +325,12 @@ function playAll(){
     src.buffer = t.buffer;
     src.playbackRate.value = pitch;
 
-    let g = ctx.createGain();
-    g.gain.value = 0.8;
+    let g = gainNodes[t.id] || ctx.createGain();
 
     src.connect(g);
     g.connect(master);
 
-    src.start(start + i*0.2);
+    src.start(start + i*0.1);
   });
 }
 
@@ -322,7 +339,7 @@ function pauseAll(){
 }
 
 /* =========================
-   CONTROLS
+   EQ / BPM / PITCH
 ========================= */
 
 function setEQ(type,v){
