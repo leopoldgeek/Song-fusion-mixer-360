@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Song 360 Fusion Mixer</title>
+  <title>Mixer Audio</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <style>
     body {
@@ -68,6 +68,9 @@
       font-size: 12px;
       user-select: none;
       cursor: grab;
+    }
+    .bubble.core {
+      cursor: default;
     }
     .bubble.dragging {
       opacity: 0.4;
@@ -139,7 +142,7 @@
       <div>
         <button id="playPauseBtn" disabled>Lecture</button>
         <button id="recordBtn" disabled>Enregistrer</button>
-        <button id="exportBtn" disabled>Exporter</button>
+        <button id="exportBtn" disabled>Exporter MP3</button>
       </div>
     </div>
 
@@ -149,8 +152,8 @@
   <aside class="side-panel">
     <div class="panel-section">
       <h2>Mix global</h2>
-      <label>Volume général</label>
-      <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="1">
+      <label>Volume CORE</label>
+      <input type="range" id="coreVolume" min="0" max="1" step="0.01" value="1">
       <div class="status" id="playStatus">Aucun son chargé.</div>
     </div>
 
@@ -173,6 +176,7 @@
         <option>Pitch -1 ton</option>
         <option>Stéréo élargie</option>
       </select>
+      <div class="status">Effets listés (structure prête pour Web Audio).</div>
     </div>
 
     <div class="panel-section">
@@ -181,19 +185,23 @@
     </div>
   </aside>
 
+  <!-- LAME.js pour encodage MP3 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
+
 <script>
 let audioCtx = null;
-let masterGain = null;
-let destinationNode = null;
-let mediaRecorder = null;
-let recordedChunks = [];
+let coreGain = null;
 
+let coreBuffer = null;      // buffer fusionné CORE
+let coreSource = null;      // source en lecture
 let isPlaying = false;
 let startTime = 0;
 let pauseTime = 0;
 
-const tracks = []; // {id, name, buffer, gainNode, source, volume, isBase, isMerged}
+const tracks = [];          // pistes non fusionnées {id, name, buffer}
 let draggedTrack = null;
+
+let mp3Blob = null;
 
 const baseInput = document.getElementById("baseSound");
 const addInput = document.getElementById("addTrack");
@@ -201,37 +209,86 @@ const bubbleContainer = document.getElementById("bubbleContainer");
 const playPauseBtn = document.getElementById("playPauseBtn");
 const recordBtn = document.getElementById("recordBtn");
 const exportBtn = document.getElementById("exportBtn");
-const masterVolume = document.getElementById("masterVolume");
+const coreVolume = document.getElementById("coreVolume");
 const playStatus = document.getElementById("playStatus");
 const recordStatus = document.getElementById("recordStatus");
+
+exportBtn.disabled = true;
 
 function ensureAudioContext() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    masterGain = audioCtx.createGain();
-    masterGain.gain.value = masterVolume.value;
-
-    destinationNode = audioCtx.createMediaStreamDestination();
-    masterGain.connect(audioCtx.destination);
-    masterGain.connect(destinationNode);
-
-    mediaRecorder = new MediaRecorder(destinationNode.stream);
-    mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
-    mediaRecorder.onstop = () => {
-      if (recordedChunks.length) exportBtn.disabled = false;
-      recordStatus.textContent = "Enregistrement terminé.";
-    };
+    coreGain = audioCtx.createGain();
+    coreGain.gain.value = coreVolume.value;
+    coreGain.connect(audioCtx.destination);
   }
 }
 
-masterVolume.oninput = () => {
-  if (masterGain) masterGain.gain.value = masterVolume.value;
+coreVolume.oninput = () => {
+  if (coreGain) coreGain.gain.value = coreVolume.value;
 };
 
 async function fileToBuffer(file) {
   ensureAudioContext();
   const arrayBuffer = await file.arrayBuffer();
   return await audioCtx.decodeAudioData(arrayBuffer);
+}
+
+function createCoreBubble() {
+  // Supprime l’ancienne bulle CORE si elle existe
+  const oldCore = document.getElementById("core-bubble");
+  if (oldCore) oldCore.remove();
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble core";
+  bubble.id = "core-bubble";
+
+  const title = document.createElement("div");
+  title.className = "bubble-title";
+  title.textContent = "CORE";
+
+  const volumeRow = document.createElement("div");
+  volumeRow.className = "volume-row";
+
+  const label = document.createElement("label");
+  label.textContent = "Volume CORE";
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = 0;
+  slider.max = 1;
+  slider.step = 0.01;
+  slider.value = coreVolume.value;
+
+  slider.oninput = () => {
+    coreVolume.value = slider.value;
+    if (coreGain) coreGain.gain.value = slider.value;
+  };
+
+  volumeRow.appendChild(label);
+  volumeRow.appendChild(slider);
+
+  bubble.appendChild(title);
+  bubble.appendChild(volumeRow);
+
+  bubbleContainer.appendChild(bubble);
+
+  enableCoreDrop(bubble);
+}
+
+function createTrackBubble(track) {
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.id = "bubble-" + track.id;
+
+  const title = document.createElement("div");
+  title.className = "bubble-title";
+  title.textContent = track.name;
+
+  bubble.appendChild(title);
+  bubbleContainer.appendChild(bubble);
+
+  enableDrag(bubble, track);
 }
 
 function enableDrag(bubble, track) {
@@ -258,164 +315,178 @@ function enableCoreDrop(coreBubble) {
     coreBubble.classList.remove("core-highlight");
   });
 
-  coreBubble.addEventListener("drop", () => {
+  coreBubble.addEventListener("drop", async () => {
     coreBubble.classList.remove("core-highlight");
-    if (!draggedTrack || draggedTrack.isBase || draggedTrack.isMerged) return;
+    if (!draggedTrack || !coreBuffer) return;
 
-    draggedTrack.isMerged = true;
+    await fuseTrackIntoCore(draggedTrack);
+
     const bubble = document.getElementById("bubble-" + draggedTrack.id);
     if (bubble) bubble.remove();
 
-    alert("Le son '" + draggedTrack.name + "' a été fusionné dans CORE.");
+    const idx = tracks.findIndex(t => t.id === draggedTrack.id);
+    if (idx !== -1) tracks.splice(idx, 1);
+
+    playStatus.textContent = "Son fusionné dans CORE.";
   });
 }
 
-function createBubble(track) {
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.id = "bubble-" + track.id;
-
-  const title = document.createElement("div");
-  title.className = "bubble-title";
-  title.textContent = track.isBase ? "CORE" : track.name;
-
-  const volumeRow = document.createElement("div");
-  volumeRow.className = "volume-row";
-
-  const label = document.createElement("label");
-  label.textContent = "Volume";
-
-  const slider = document.createElement("input");
-  slider.type = "range";
-  slider.min = 0;
-  slider.max = 1;
-  slider.step = 0.01;
-  slider.value = track.volume;
-
-  slider.oninput = () => {
-    track.volume = slider.value;
-    if (track.gainNode) track.gainNode.gain.value = track.volume;
-  };
-
-  volumeRow.appendChild(label);
-  volumeRow.appendChild(slider);
-
-  bubble.appendChild(title);
-  bubble.appendChild(volumeRow);
-
-  bubbleContainer.appendChild(bubble);
-
-  if (track.isBase) {
-    enableCoreDrop(bubble);
-  } else {
-    enableDrag(bubble, track);
-  }
+async function addBase(file) {
+  coreBuffer = await fileToBuffer(file);
+  createCoreBubble();
+  playPauseBtn.disabled = false;
+  recordBtn.disabled = false;
+  playStatus.textContent = "CORE chargé.";
 }
 
-async function addTrack(file, isBase = false) {
+async function addTrack(file) {
   const buffer = await fileToBuffer(file);
-
   const track = {
     id: Math.random().toString(36).slice(2),
     name: file.name,
-    buffer,
-    gainNode: null,
-    source: null,
-    volume: 1,
-    isBase,
-    isMerged: isBase // CORE est toujours dans le mix
+    buffer
   };
-
   tracks.push(track);
-  createBubble(track);
-
-  playPauseBtn.disabled = false;
-  recordBtn.disabled = false;
-  playStatus.textContent = "Pistes chargées.";
+  createTrackBubble(track);
+  playStatus.textContent = "Piste ajoutée (fusionne-la dans CORE pour l'entendre).";
 }
 
 baseInput.onchange = e => {
-  if (e.target.files[0]) addTrack(e.target.files[0], true);
+  const f = e.target.files[0];
+  if (f) addBase(f);
 };
 
 addInput.onchange = e => {
-  [...e.target.files].forEach(f => addTrack(f, false));
+  [...e.target.files].forEach(f => addTrack(f));
 };
 
-function stopAll() {
-  tracks.forEach(t => {
-    if (t.source) {
-      try { t.source.stop(); } catch {}
-      t.source.disconnect();
-    }
-    if (t.gainNode) t.gainNode.disconnect();
-    t.source = null;
-    t.gainNode = null;
-  });
+function stopCore() {
+  if (coreSource) {
+    try { coreSource.stop(); } catch {}
+    coreSource.disconnect();
+    coreSource = null;
+  }
 }
 
-function playAll(offset = 0) {
+function playCore(offset = 0) {
+  if (!coreBuffer) return;
   ensureAudioContext();
-  stopAll();
+  stopCore();
 
+  coreSource = audioCtx.createBufferSource();
+  coreSource.buffer = coreBuffer;
+  coreSource.connect(coreGain);
   startTime = audioCtx.currentTime - offset;
-
-  // On ne joue que CORE + pistes fusionnées
-  const toPlay = tracks.filter(t => t.isBase || t.isMerged);
-
-  toPlay.forEach(t => {
-    const src = audioCtx.createBufferSource();
-    src.buffer = t.buffer;
-
-    const gain = audioCtx.createGain();
-    gain.gain.value = t.volume;
-
-    src.connect(gain);
-    gain.connect(masterGain);
-
-    src.start(0, offset);
-
-    t.source = src;
-    t.gainNode = gain;
-  });
+  coreSource.start(0, offset);
 }
 
 playPauseBtn.onclick = () => {
-  if (!audioCtx) ensureAudioContext();
+  if (!coreBuffer) return;
+  ensureAudioContext();
 
   if (!isPlaying) {
-    playAll(pauseTime);
+    playCore(pauseTime);
     isPlaying = true;
     playPauseBtn.textContent = "Pause";
-    playStatus.textContent = "Lecture en cours.";
+    playStatus.textContent = "Lecture CORE.";
   } else {
     pauseTime = audioCtx.currentTime - startTime;
-    stopAll();
+    stopCore();
     isPlaying = false;
     playPauseBtn.textContent = "Lecture";
     playStatus.textContent = "En pause.";
   }
 };
 
-recordBtn.onclick = () => {
-  if (!mediaRecorder) return;
-  if (mediaRecorder.state === "inactive") {
-    recordedChunks = [];
-    mediaRecorder.start();
-    recordStatus.textContent = "Enregistrement...";
-  } else {
-    mediaRecorder.stop();
-    recordStatus.textContent = "Arrêt de l'enregistrement...";
+// Fusion réelle : mixage offline de CORE + piste
+async function fuseTrackIntoCore(track) {
+  if (!coreBuffer || !track.buffer) return;
+
+  const sampleRate = coreBuffer.sampleRate;
+  const length = Math.max(coreBuffer.length, track.buffer.length);
+
+  const offlineCtx = new OfflineAudioContext(1, length, sampleRate);
+
+  const coreSrc = offlineCtx.createBufferSource();
+  coreSrc.buffer = coreBuffer;
+  coreSrc.connect(offlineCtx.destination);
+  coreSrc.start(0);
+
+  const trackSrc = offlineCtx.createBufferSource();
+  trackSrc.buffer = track.buffer;
+  trackSrc.connect(offlineCtx.destination);
+  trackSrc.start(0);
+
+  const rendered = await offlineCtx.startRendering();
+  coreBuffer = rendered;
+  pauseTime = 0;
+}
+
+// Encodage MP3 192 kbps via lamejs
+function encodeCoreToMp3() {
+  if (!coreBuffer) return null;
+
+  const numChannels = coreBuffer.numberOfChannels;
+  const sampleRate = coreBuffer.sampleRate;
+  const left = coreBuffer.getChannelData(0);
+  let samples = left;
+
+  if (numChannels > 1) {
+    const right = coreBuffer.getChannelData(1);
+    const len = left.length;
+    const mixed = new Float32Array(len);
+    for (let i = 0; i < len; i++) {
+      mixed[i] = (left[i] + right[i]) / 2;
+    }
+    samples = mixed;
   }
+
+  const mp3Encoder = new lamejs.Mp3Encoder(1, sampleRate, 192);
+  const blockSize = 1152;
+  const mp3Data = [];
+
+  let i = 0;
+  while (i < samples.length) {
+    const chunk = samples.subarray(i, i + blockSize);
+    const buffer = new Int16Array(chunk.length);
+    for (let j = 0; j < chunk.length; j++) {
+      let s = Math.max(-1, Math.min(1, chunk[j]));
+      buffer[j] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    const mp3buf = mp3Encoder.encodeBuffer(buffer);
+    if (mp3buf.length > 0) mp3Data.push(mp3buf);
+    i += blockSize;
+  }
+
+  const end = mp3Encoder.flush();
+  if (end.length > 0) mp3Data.push(end);
+
+  return new Blob(mp3Data, { type: "audio/mpeg" });
+}
+
+recordBtn.onclick = () => {
+  if (!coreBuffer) {
+    recordStatus.textContent = "Aucun CORE à enregistrer.";
+    return;
+  }
+  recordStatus.textContent = "Encodage MP3 en cours...";
+  setTimeout(() => {
+    mp3Blob = encodeCoreToMp3();
+    if (mp3Blob) {
+      recordStatus.textContent = "MP3 prêt. Clique sur Exporter.";
+      exportBtn.disabled = false;
+    } else {
+      recordStatus.textContent = "Erreur encodage MP3.";
+    }
+  }, 10);
 };
 
 exportBtn.onclick = () => {
-  if (!recordedChunks.length) return;
-  const blob = new Blob(recordedChunks, { type: "audio/webm" });
-  const url = URL.createObjectURL(blob);
+  if (!mp3Blob) return;
+  const url = URL.createObjectURL(mp3Blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "mix.webm";
+  a.download = "mix_core.mp3";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
