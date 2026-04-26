@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Mixer</title>
+<link rel="icon" href="favicon.png">
+</head>
+
+<body style="background:#020617;color:white;text-align:center;font-family:Arial;">
+
+<h2>🎧 Mixer</h2>
+
+<button onclick="go('profile.html')">👤 Profil</button>
+<button onclick="go('cloud.html')">☁️ Cloud</button>
+
+<br><br>
+
+<input type="file" id="fileInput">
+
+<div id="zone"></div>
+
+<script>
+let sounds = [];
+
+fileInput.onchange = (e)=>{
+ const file = e.target.files[0];
+ if(!file) return;
+
+ const url = URL.createObjectURL(file);
+ sounds.push({url,name:file.name});
+
+ const btn = document.createElement("button");
+ btn.innerText = "▶ " + file.name;
+
+ btn.onclick = ()=> new Audio(url).play();
+
+ zone.appendChild(btn);
+};
+
+function go(p){ window.location = p; }
+
+window.onbeforeunload = ()=>{
+ localStorage.setItem("mix", JSON.stringify(sounds));
+};
+</script>
+
+</body>
+</html>
