@@ -2,143 +2,234 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Song360 - Accueil</title>
-
-<link rel="icon" type="image/png" href="favicon.png">
+<title>Song360 Fusion Mixer</title>
+<link rel="icon" href="favicon.png">
 
 <style>
 body{
-    margin:0;
-    background:radial-gradient(circle at center,#020617,#000);
-    color:white;
-    font-family:Arial;
-    text-align:center;
-}
-
-/* HEADER */
-header{
-    padding:40px 20px;
+ margin:0;
+ background:radial-gradient(circle,#020617,#000);
+ color:white;
+ font-family:Arial;
+ text-align:center;
 }
 
 h1{
-    font-size:40px;
-    color:#38bdf8;
-    text-shadow:0 0 20px #38bdf8;
+ margin:15px;
+ color:#38bdf8;
+ text-shadow:0 0 10px #38bdf8;
 }
 
-/* DESCRIPTION */
-#desc{
-    max-width:700px;
-    margin:auto;
-    font-size:18px;
-    line-height:1.6;
-    opacity:0.9;
+#container{
+ position:relative;
+ width:650px;
+ height:500px;
+ margin:auto;
+ border-radius:20px;
+ box-shadow:inset 0 0 40px rgba(56,189,248,0.1);
+ overflow:hidden;
 }
 
-/* BUTTONS */
-#buttons{
-    margin-top:40px;
-    display:flex;
-    justify-content:center;
-    gap:20px;
-    flex-wrap:wrap;
+/* CORE */
+#core{
+ position:absolute;
+ top:210px;
+ left:285px;
+ width:80px;
+ height:80px;
+ border-radius:50%;
+ background:orange;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ font-weight:bold;
+ box-shadow:0 0 20px orange;
 }
 
+/* BUBBLES */
+.bubble{
+ position:absolute;
+ width:70px;
+ height:70px;
+ border-radius:50%;
+ background:linear-gradient(45deg,#38bdf8,#0ea5e9);
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ cursor:grab;
+ user-select:none;
+ box-shadow:0 0 15px #38bdf8;
+}
+
+.bubble.active{
+ box-shadow:0 0 25px lime;
+ transform:scale(1.1);
+}
+
+/* PANEL */
+#panel{
+ margin-top:10px;
+}
 button{
-    padding:12px 20px;
-    border:none;
-    border-radius:10px;
-    background:#38bdf8;
-    color:black;
-    font-weight:bold;
-    cursor:pointer;
-    transition:0.2s;
-}
-
-button:hover{
-    transform:scale(1.1);
-    box-shadow:0 0 15px #38bdf8;
-}
-
-/* FEATURES */
-#features{
-    margin-top:60px;
-    display:flex;
-    justify-content:center;
-    gap:30px;
-    flex-wrap:wrap;
-}
-
-.card{
-    width:220px;
-    padding:20px;
-    background:#111827;
-    border-radius:15px;
-    box-shadow:0 0 15px rgba(56,189,248,0.2);
-}
-
-.card h3{
-    color:#38bdf8;
-}
-
-/* FOOTER */
-footer{
-    margin-top:60px;
-    opacity:0.5;
-    font-size:14px;
+ margin:5px;
+ padding:8px;
+ border:none;
+ cursor:pointer;
+ background:#38bdf8;
+ color:black;
+ font-weight:bold;
+ border-radius:8px;
 }
 </style>
 </head>
 
 <body>
 
-<header>
 <h1>🎧 Song360 Fusion Mixer</h1>
 
-<div id="desc">
-Song360 est une application web interactive qui te permet de <b>créer, mixer et partager des sons</b> facilement.  
-Glisse des sons, fusionne-les, ajoute des effets, puis sauvegarde ton mix dans le cloud pour le retrouver plus tard ou le partager avec d'autres.
+<input type="file" id="fileInput" accept="audio/*">
+
+<div id="container">
+ <div id="core">CORE</div>
 </div>
 
-<div id="buttons">
-<button onclick="go('mixer.html')">🎧 Ouvrir le Mixer</button>
-<button onclick="go('cloud.html')">☁️ Accéder au Cloud</button>
-<button onclick="go('profile.html')">👤 Mon Profil</button>
+<div id="panel">
+ <button onclick="startRec()">🎙 Record</button>
+ <button onclick="stopRec()">💾 Download MP3</button>
 </div>
-</header>
-
-<!-- FEATURES -->
-<div id="features">
-
-<div class="card">
-<h3>🎚 Mixer interactif</h3>
-<p>Ajoute et fusionne des sons en temps réel avec une interface visuelle simple.</p>
-</div>
-
-<div class="card">
-<h3>☁️ Cloud intégré</h3>
-<p>Sauvegarde tes créations et retrouve-les à tout moment.</p>
-</div>
-
-<div class="card">
-<h3>🔗 Partage facile</h3>
-<p>Partage tes mixes avec un lien et fais découvrir tes créations.</p>
-</div>
-
-<div class="card">
-<h3>🎛 Effets audio</h3>
-<p>Modifie le son avec bass, volume et autres effets.</p>
-</div>
-
-</div>
-
-<footer>
-© Song360 - Fusion Mixer
-</footer>
 
 <script>
-function go(page){
-    window.location.href = page;
+const container=document.getElementById("container");
+const core=document.getElementById("core");
+const fileInput=document.getElementById("fileInput");
+
+let bubbles=[];
+let audios=[];
+
+/* AUDIO CONTEXT */
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+const master = ctx.createGain();
+master.connect(ctx.destination);
+
+/* RECORD */
+let recorder, chunks=[];
+
+/* CREATE BUBBLE */
+fileInput.onchange = (e)=>{
+ const file = e.target.files[0];
+ const url = URL.createObjectURL(file);
+
+ const audio = new Audio(url);
+ audio.loop = false;
+
+ const source = ctx.createMediaElementSource(audio);
+ const gain = ctx.createGain();
+
+ source.connect(gain);
+ gain.connect(master);
+
+ const bubble = document.createElement("div");
+ bubble.className="bubble";
+ bubble.innerText=bubbles.length+1;
+
+ container.appendChild(bubble);
+
+ const data = {
+  el:bubble,
+  audio,
+  gain,
+  loop:false,
+  x:100+Math.random()*400,
+  y:100+Math.random()*300
+ };
+
+ bubble.style.left=data.x+"px";
+ bubble.style.top=data.y+"px";
+
+ /* CLICK = PLAY + LOOP SWITCH */
+ bubble.onclick = ()=>{
+  audio.currentTime=0;
+  audio.play();
+
+  data.loop = !data.loop;
+  audio.loop = data.loop;
+
+  bubble.classList.toggle("active");
+ };
+
+ /* DRAG */
+ let drag=false;
+
+ bubble.onmousedown=(e)=>{
+  drag=true;
+ };
+
+ document.onmousemove=(e)=>{
+  if(!drag) return;
+
+  const rect=container.getBoundingClientRect();
+
+  data.x=e.clientX-rect.left;
+  data.y=e.clientY-rect.top;
+
+  bubble.style.left=data.x+"px";
+  bubble.style.top=data.y+"px";
+
+  checkFusion(data);
+ };
+
+ document.onmouseup=()=>drag=false;
+
+ bubbles.push(data);
+};
+
+/* FUSION SYSTEM */
+function checkFusion(b){
+ bubbles.forEach(other=>{
+  if(other===b) return;
+
+  const dx=b.x-other.x;
+  const dy=b.y-other.y;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+
+  if(dist<80){
+   fuse(b,other);
+  }
+ });
+}
+
+/* FUSION EFFECT */
+function fuse(a,b){
+ a.gain.gain.value += 0.2;
+ b.gain.gain.value += 0.2;
+
+ core.style.transform="scale(1.2)";
+ setTimeout(()=>core.style.transform="scale(1)",200);
+}
+
+/* RECORD AUDIO */
+function startRec(){
+ chunks=[];
+ recorder = new MediaRecorder(master.context?.destination?.stream || []);
+
+ recorder.ondataavailable = e=>chunks.push(e.data);
+ recorder.start();
+
+ alert("Recording...");
+}
+
+function stopRec(){
+ recorder.stop();
+
+ recorder.onstop=()=>{
+  const blob = new Blob(chunks,{type:"audio/webm"});
+  const url = URL.createObjectURL(blob);
+
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="song360_mix.mp3"; // navigateur = webm mais rename mp3
+  a.click();
+ };
 }
 </script>
 
