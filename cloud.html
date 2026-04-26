@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
 <meta charset="UTF-8">
 <title>Cloud</title>
@@ -8,17 +8,22 @@
 
 <style>
 body{
-background:#020617;
-color:white;
-text-align:center;
-font-family:Arial;
+ background:#020617;
+ color:white;
+ text-align:center;
+ font-family:Arial;
 }
 button{
-margin:5px;
-padding:8px;
-background:#38bdf8;
-border:none;
-cursor:pointer;
+ margin:5px;
+ padding:8px;
+ background:#38bdf8;
+ border:none;
+ cursor:pointer;
+}
+.item{
+ background:#111827;
+ margin:10px;
+ padding:10px;
 }
 </style>
 </head>
@@ -30,13 +35,12 @@ cursor:pointer;
 <button onclick="go('mixer.html')">🎧</button>
 <button onclick="go('profile.html')">👤</button>
 
-<br><br>
+<br>
 
 <input type="file" id="file">
-
 <button onclick="upload()">Upload</button>
 
-<h3>📚 Sons</h3>
+<h3>📚 Bibliothèque</h3>
 <div id="list"></div>
 
 <script>
@@ -47,7 +51,6 @@ const supabase = window.supabase.createClient(
 
 async function upload(){
  const f=file.files[0];
-
  const name=Date.now()+f.name;
 
  await supabase.storage.from("songs").upload(name,f);
@@ -69,12 +72,13 @@ async function load(){
  list.innerHTML="";
 
  data.forEach(s=>{
- const btn=document.createElement("button");
- btn.innerText=s.name;
+  const div=document.createElement("div");
+  div.className="item";
+  div.innerText=s.name;
 
- btn.onclick=()=>new Audio(s.url).play();
+  div.onclick=()=>new Audio(s.url).play();
 
- list.appendChild(btn);
+  list.appendChild(div);
  });
 }
 
