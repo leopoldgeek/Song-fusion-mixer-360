@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Song 360 Fusion Mixer</title>
+  <title>Mixer Audio</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <style>
     body {
@@ -129,6 +129,38 @@
     .panel-section input[type="range"] {
       width: 100%;
     }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+      margin-bottom: 10px;
+    }
+    .switch input { display: none; }
+    .slider-round {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0;
+      right: 0; bottom: 0;
+      background-color: #444;
+      transition: .3s;
+      border-radius: 24px;
+    }
+    .slider-round:before {
+      position: absolute;
+      content: "";
+      height: 18px; width: 18px;
+      left: 3px; bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider-round {
+      background-color: #00ff99;
+    }
+    input:checked + .slider-round:before {
+      transform: translateX(22px);
+    }
   </style>
 </head>
 <body>
@@ -166,12 +198,20 @@
     </div>
 
     <div class="panel-section">
-      <h2>Effets audio</h2>
+      <h2>Effets DJ</h2>
+      <label>Activer les effets</label>
+      <label class="switch">
+        <input type="checkbox" id="fxToggle">
+        <span class="slider-round"></span>
+      </label>
+
       <label for="highSlider">HIGH (passe-haut)</label>
       <input type="range" id="highSlider" min="0" max="1" step="0.01" value="0">
+
       <label for="lowSlider">LOW (passe-bas)</label>
       <input type="range" id="lowSlider" min="0" max="1" step="0.01" value="0">
-      <div class="status">HIGH/LOW comme une table DJ (en temps réel sur CORE).</div>
+
+      <div class="status">HIGH/LOW agissent sur CORE seulement si l’interrupteur est ON.</div>
     </div>
 
     <div class="panel-section">
@@ -180,7 +220,6 @@
     </div>
   </aside>
 
-  <!-- LAME.js pour encodage MP3 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
 
 <script>
@@ -199,6 +238,7 @@ const tracks = []; // {id, name, buffer}
 let draggedTrack = null;
 
 let mp3Blob = null;
+let fxEnabled = false;
 
 const baseInput = document.getElementById("baseSound");
 const addInput = document.getElementById("addTrack");
@@ -209,6 +249,7 @@ const exportBtn = document.getElementById("exportBtn");
 const coreVolume = document.getElementById("coreVolume");
 const playStatus = document.getElementById("playStatus");
 const recordStatus = document.getElementById("recordStatus");
+const fxToggle = document.getElementById("fxToggle");
 const highSlider = document.getElementById("highSlider");
 const lowSlider = document.getElementById("lowSlider");
 
@@ -229,14 +270,17 @@ function ensureAudioContext() {
     lowFilter.type = "lowpass";
     lowFilter.frequency.value = 20000;
 
-    highFilter.connect(lowFilter);
-    lowFilter.connect(coreGain);
     coreGain.connect(audioCtx.destination);
   }
 }
 
 coreVolume.oninput = () => {
   if (coreGain) coreGain.gain.value = coreVolume.value;
+};
+
+fxToggle.onchange = () => {
+  fxEnabled = fxToggle.checked;
+  connectCoreGraph();
 };
 
 highSlider.oninput = () => {
@@ -254,6 +298,22 @@ lowSlider.oninput = () => {
   const maxF = 20000;
   lowFilter.frequency.value = maxF - v * (maxF - minF);
 };
+
+function connectCoreGraph() {
+  if (!coreSource || !coreGain || !highFilter || !lowFilter) return;
+
+  try { coreSource.disconnect(); } catch {}
+  try { highFilter.disconnect(); } catch {}
+  try { lowFilter.disconnect(); } catch {}
+
+  if (fxEnabled) {
+    coreSource.connect(highFilter);
+    highFilter.connect(lowFilter);
+    lowFilter.connect(coreGain);
+  } else {
+    coreSource.connect(coreGain);
+  }
+}
 
 async function fileToBuffer(file) {
   ensureAudioContext();
@@ -389,7 +449,7 @@ addInput.onchange = e => {
 function stopCore() {
   if (coreSource) {
     try { coreSource.stop(); } catch {}
-    coreSource.disconnect();
+    try { coreSource.disconnect(); } catch {}
     coreSource = null;
   }
 }
@@ -401,7 +461,9 @@ function playCore(offset = 0) {
 
   coreSource = audioCtx.createBufferSource();
   coreSource.buffer = coreBuffer;
-  coreSource.connect(highFilter);
+
+  connectCoreGraph();
+
   startTime = audioCtx.currentTime - offset;
   coreSource.start(0, offset);
 }
