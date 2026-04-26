@@ -2,263 +2,144 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Song360 PRO+</title>
- <link rel="icon" href="favicon.png" type="image/png">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<title>Song360 - Accueil</title>
+
+<link rel="icon" type="image/png" href="favicon.png">
 
 <style>
-body{margin:0;background:#020617;color:white;font-family:Arial;text-align:center;}
-#nav{margin:10px;}
-button{margin:5px;padding:8px;}
+body{
+    margin:0;
+    background:radial-gradient(circle at center,#020617,#000);
+    color:white;
+    font-family:Arial;
+    text-align:center;
+}
 
-.panel{display:none;}
-.active{display:block;}
+/* HEADER */
+header{
+    padding:40px 20px;
+}
 
-#container{position:relative;width:420px;height:420px;margin:auto;}
-#center{position:absolute;top:170px;left:170px;width:80px;height:80px;background:orange;border-radius:50%;}
+h1{
+    font-size:40px;
+    color:#38bdf8;
+    text-shadow:0 0 20px #38bdf8;
+}
 
-.bubble{position:absolute;width:60px;height:60px;background:#38bdf8;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:grab;}
+/* DESCRIPTION */
+#desc{
+    max-width:700px;
+    margin:auto;
+    font-size:18px;
+    line-height:1.6;
+    opacity:0.9;
+}
 
-.item{background:#111827;margin:10px auto;padding:10px;width:250px;border-radius:8px;cursor:pointer;}
+/* BUTTONS */
+#buttons{
+    margin-top:40px;
+    display:flex;
+    justify-content:center;
+    gap:20px;
+    flex-wrap:wrap;
+}
+
+button{
+    padding:12px 20px;
+    border:none;
+    border-radius:10px;
+    background:#38bdf8;
+    color:black;
+    font-weight:bold;
+    cursor:pointer;
+    transition:0.2s;
+}
+
+button:hover{
+    transform:scale(1.1);
+    box-shadow:0 0 15px #38bdf8;
+}
+
+/* FEATURES */
+#features{
+    margin-top:60px;
+    display:flex;
+    justify-content:center;
+    gap:30px;
+    flex-wrap:wrap;
+}
+
+.card{
+    width:220px;
+    padding:20px;
+    background:#111827;
+    border-radius:15px;
+    box-shadow:0 0 15px rgba(56,189,248,0.2);
+}
+
+.card h3{
+    color:#38bdf8;
+}
+
+/* FOOTER */
+footer{
+    margin-top:60px;
+    opacity:0.5;
+    font-size:14px;
+}
 </style>
 </head>
 
 <body>
 
-<h2>🎧 Song360 PRO+</h2>
+<header>
+<h1>🎧 Song360 Fusion Mixer</h1>
 
-<div id="nav">
-<button onclick="show('mixer')">Mixer</button>
-<button onclick="show('cloud')">Cloud</button>
+<div id="desc">
+Song360 est une application web interactive qui te permet de <b>créer, mixer et partager des sons</b> facilement.  
+Glisse des sons, fusionne-les, ajoute des effets, puis sauvegarde ton mix dans le cloud pour le retrouver plus tard ou le partager avec d'autres.
 </div>
 
-<!-- LOGIN -->
-<input id="email" placeholder="email">
-<input id="password" type="password">
-<button onclick="signup()">Créer</button>
-<button onclick="login()">Login</button>
+<div id="buttons">
+<button onclick="go('mixer.html')">🎧 Ouvrir le Mixer</button>
+<button onclick="go('cloud.html')">☁️ Accéder au Cloud</button>
+<button onclick="go('profile.html')">👤 Mon Profil</button>
+</div>
+</header>
 
-<p id="status">Non connecté</p>
+<!-- FEATURES -->
+<div id="features">
 
-<!-- MIXER -->
-<div id="mixer" class="panel active">
-
-<input type="file" id="fileInput">
-
-<br>
-
-<label>Bass</label>
-<input type="range" id="bass" min="0" max="2" step="0.1" value="1">
-
-<label>Volume</label>
-<input type="range" id="volume" min="0" max="2" step="0.1" value="1">
-
-<div id="container">
-<div id="center"></div>
+<div class="card">
+<h3>🎚 Mixer interactif</h3>
+<p>Ajoute et fusionne des sons en temps réel avec une interface visuelle simple.</p>
 </div>
 
-<button onclick="saveMix()">💾 Save</button>
+<div class="card">
+<h3>☁️ Cloud intégré</h3>
+<p>Sauvegarde tes créations et retrouve-les à tout moment.</p>
+</div>
+
+<div class="card">
+<h3>🔗 Partage facile</h3>
+<p>Partage tes mixes avec un lien et fais découvrir tes créations.</p>
+</div>
+
+<div class="card">
+<h3>🎛 Effets audio</h3>
+<p>Modifie le son avec bass, volume et autres effets.</p>
+</div>
 
 </div>
 
-<!-- CLOUD -->
-<div id="cloud" class="panel">
-<h3>📚 Bibliothèque</h3>
-<div id="library"></div>
-</div>
+<footer>
+© Song360 - Fusion Mixer
+</footer>
 
 <script>
-
-/* SUPABASE */
-const supabase = window.supabase.createClient(
- "https://hnpfyxnodhthzxvwfnvl.supabase.co",
- "sb_publishable_pJJjozADUUOFcBp3uut0dg_yH2SVm8V"
-);
-
-let user=null;
-let bubbles=[];
-
-/* NAV */
-function show(id){
- document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
- document.getElementById(id).classList.add("active");
- if(id==="cloud") loadLibrary();
+function go(page){
+    window.location.href = page;
 }
-
-/* AUTH */
-async function signup(){
- const {error}=await supabase.auth.signUp({
-  email:email.value,
-  password:password.value
- });
- alert(error?error.message:"Compte créé !");
-}
-
-async function login(){
- const {data,error}=await supabase.auth.signInWithPassword({
-  email:email.value,
-  password:password.value
- });
- if(error)return alert(error.message);
- user=data.user;
- status.innerText="Connecté";
-}
-
-/* AUDIO */
-fileInput.onchange=async e=>{
- const file=e.target.files[0];
- if(!file)return;
-
- const path=Date.now()+file.name;
-
- const {error}=await supabase.storage.from("songs").upload(path,file);
- if(error)return alert(error.message);
-
- const {data}=supabase.storage.from("songs").getPublicUrl(path);
-
- const audio=new Audio(data.publicUrl);
- audio.loop=true;
-
- createBubble(audio,data.publicUrl);
-};
-
-function createBubble(audio,url){
- const ctx=new AudioContext();
- const source=ctx.createMediaElementSource(audio);
-
- const gain=ctx.createGain();
- const bassFilter=ctx.createBiquadFilter();
- bassFilter.type="lowshelf";
-
- source.connect(bassFilter);
- bassFilter.connect(gain);
- gain.connect(ctx.destination);
-
- const el=document.createElement("div");
- el.className="bubble";
- el.innerText="🎵";
-
- container.appendChild(el);
-
- const obj={el,audio,url,gain,bassFilter,x:200,y:200};
- bubbles.push(obj);
-
- update();
- drag(obj);
-}
-
-function update(){
- bubbles.forEach((b,i)=>{
- b.x=80+i*70;
- b.y=180;
- b.el.style.left=b.x+"px";
- b.el.style.top=b.y+"px";
- });
-}
-
-function drag(b){
- let move=false;
-
- b.el.onmousedown=()=>move=true;
-
- document.onmousemove=e=>{
- if(!move)return;
-
- const rect=container.getBoundingClientRect();
-
- b.x=e.clientX-rect.left-30;
- b.y=e.clientY-rect.top-30;
-
- b.el.style.left=b.x+"px";
- b.el.style.top=b.y+"px";
- };
-
- document.onmouseup=()=>{
- move=false;
-
- if(collide(b.el,center)){
- b.audio.play();
- }
- };
-}
-
-function collide(a,b){
- const r1=a.getBoundingClientRect();
- const r2=b.getBoundingClientRect();
- return !(r1.right<r2.left||r1.left>r2.right||r1.bottom<r2.top||r1.top>r2.bottom);
-}
-
-/* EFFECTS */
-bass.oninput=()=>{
- bubbles.forEach(b=>{
- b.bassFilter.gain.value=bass.value*10;
- });
-};
-
-volume.oninput=()=>{
- bubbles.forEach(b=>{
- b.gain.gain.value=volume.value;
- });
-};
-
-/* SAVE + SHARE */
-async function saveMix(){
-
- if(!user)return alert("login requis");
-
- const mix=bubbles.map(b=>({url:b.url}));
-
- const {data,error}=await supabase
-  .from("mixes")
-  .insert([{user_id:user.id,data:mix}])
-  .select();
-
- if(error)return alert(error.message);
-
- const link=location.origin+"?mix="+data[0].id;
- navigator.clipboard.writeText(link);
-
- alert("🔗 lien copié !");
-}
-
-/* LOAD */
-async function loadLibrary(){
- const {data}=await supabase.from("mixes").select("*");
-
- library.innerHTML="";
-
- data.forEach(m=>{
- const div=document.createElement("div");
- div.className="item";
- div.innerText="🎧 Mix";
-
- div.onclick=()=>{
- bubbles.forEach(b=>b.el.remove());
- bubbles=[];
-
- m.data.forEach(s=>{
- const audio=new Audio(s.url);
- audio.loop=true;
- createBubble(audio,s.url);
- });
- };
-
- library.appendChild(div);
- });
-}
-
-/* SHARE LOAD */
-const params=new URLSearchParams(location.search);
-if(params.get("mix")){
- supabase.from("mixes").select("*").eq("id",params.get("mix")).single()
- .then(({data})=>{
- data.data.forEach(s=>{
- const audio=new Audio(s.url);
- createBubble(audio,s.url);
- });
- });
-}
-
 </script>
 
 </body>
