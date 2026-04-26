@@ -2,234 +2,208 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Song360 Fusion Mixer</title>
+<title>Song360 Fusion Stable</title>
 <link rel="icon" href="favicon.png">
 
 <style>
 body{
- margin:0;
- background:radial-gradient(circle,#020617,#000);
- color:white;
- font-family:Arial;
- text-align:center;
+margin:0;
+background:#020617;
+color:white;
+font-family:Arial;
+text-align:center;
 }
 
 h1{
- margin:15px;
- color:#38bdf8;
- text-shadow:0 0 10px #38bdf8;
+color:#38bdf8;
+text-shadow:0 0 10px #38bdf8;
 }
 
 #container{
- position:relative;
- width:650px;
- height:500px;
- margin:auto;
- border-radius:20px;
- box-shadow:inset 0 0 40px rgba(56,189,248,0.1);
- overflow:hidden;
+position:relative;
+width:650px;
+height:500px;
+margin:auto;
+background:#0f172a;
+border-radius:20px;
+overflow:hidden;
 }
 
-/* CORE */
-#core{
- position:absolute;
- top:210px;
- left:285px;
- width:80px;
- height:80px;
- border-radius:50%;
- background:orange;
- display:flex;
- align-items:center;
- justify-content:center;
- font-weight:bold;
- box-shadow:0 0 20px orange;
-}
-
-/* BUBBLES */
 .bubble{
- position:absolute;
- width:70px;
- height:70px;
- border-radius:50%;
- background:linear-gradient(45deg,#38bdf8,#0ea5e9);
- display:flex;
- align-items:center;
- justify-content:center;
- cursor:grab;
- user-select:none;
- box-shadow:0 0 15px #38bdf8;
+position:absolute;
+width:70px;
+height:70px;
+border-radius:50%;
+background:linear-gradient(45deg,#38bdf8,#0ea5e9);
+display:flex;
+align-items:center;
+justify-content:center;
+cursor:grab;
+user-select:none;
+font-weight:bold;
 }
 
 .bubble.active{
- box-shadow:0 0 25px lime;
- transform:scale(1.1);
+box-shadow:0 0 20px lime;
+transform:scale(1.1);
 }
 
-/* PANEL */
-#panel{
- margin-top:10px;
+#core{
+position:absolute;
+top:210px;
+left:285px;
+width:80px;
+height:80px;
+border-radius:50%;
+background:orange;
+display:flex;
+align-items:center;
+justify-content:center;
+font-weight:bold;
 }
 button{
- margin:5px;
- padding:8px;
- border:none;
- cursor:pointer;
- background:#38bdf8;
- color:black;
- font-weight:bold;
- border-radius:8px;
+margin:5px;
+padding:8px;
+border:none;
+background:#38bdf8;
+cursor:pointer;
 }
 </style>
 </head>
 
 <body>
 
-<h1>🎧 Song360 Fusion Mixer</h1>
+<h1>🎧 Song360 Fusion Stable</h1>
 
-<input type="file" id="fileInput" accept="audio/*">
+<input type="file" id="file" accept="audio/*">
 
 <div id="container">
- <div id="core">CORE</div>
+<div id="core">CORE</div>
 </div>
 
-<div id="panel">
- <button onclick="startRec()">🎙 Record</button>
- <button onclick="stopRec()">💾 Download MP3</button>
-</div>
+<button onclick="startRec()">🎙 Record</button>
+<button onclick="stopRec()">💾 Download</button>
 
 <script>
 const container=document.getElementById("container");
+const file=document.getElementById("file");
 const core=document.getElementById("core");
-const fileInput=document.getElementById("fileInput");
 
 let bubbles=[];
-let audios=[];
-
-/* AUDIO CONTEXT */
-const ctx = new (window.AudioContext || window.webkitAudioContext)();
-const master = ctx.createGain();
-master.connect(ctx.destination);
+let audioCtx = new AudioContext();
+let dest = audioCtx.createMediaStreamDestination();
 
 /* RECORD */
-let recorder, chunks=[];
+let recorder;
+let chunks=[];
 
 /* CREATE BUBBLE */
-fileInput.onchange = (e)=>{
- const file = e.target.files[0];
- const url = URL.createObjectURL(file);
+file.onchange=(e)=>{
+const f=e.target.files[0];
+const url=URL.createObjectURL(f);
 
- const audio = new Audio(url);
- audio.loop = false;
+const audio=new Audio(url);
+audio.loop=false;
 
- const source = ctx.createMediaElementSource(audio);
- const gain = ctx.createGain();
+const source=audioCtx.createMediaElementSource(audio);
+const gain=audioCtx.createGain();
 
- source.connect(gain);
- gain.connect(master);
+source.connect(gain);
+gain.connect(audioCtx.destination);
+gain.connect(dest);
 
- const bubble = document.createElement("div");
- bubble.className="bubble";
- bubble.innerText=bubbles.length+1;
+const bubble=document.createElement("div");
+bubble.className="bubble";
+bubble.innerText=bubbles.length+1;
 
- container.appendChild(bubble);
+container.appendChild(bubble);
 
- const data = {
-  el:bubble,
-  audio,
-  gain,
-  loop:false,
-  x:100+Math.random()*400,
-  y:100+Math.random()*300
- };
-
- bubble.style.left=data.x+"px";
- bubble.style.top=data.y+"px";
-
- /* CLICK = PLAY + LOOP SWITCH */
- bubble.onclick = ()=>{
-  audio.currentTime=0;
-  audio.play();
-
-  data.loop = !data.loop;
-  audio.loop = data.loop;
-
-  bubble.classList.toggle("active");
- };
-
- /* DRAG */
- let drag=false;
-
- bubble.onmousedown=(e)=>{
-  drag=true;
- };
-
- document.onmousemove=(e)=>{
-  if(!drag) return;
-
-  const rect=container.getBoundingClientRect();
-
-  data.x=e.clientX-rect.left;
-  data.y=e.clientY-rect.top;
-
-  bubble.style.left=data.x+"px";
-  bubble.style.top=data.y+"px";
-
-  checkFusion(data);
- };
-
- document.onmouseup=()=>drag=false;
-
- bubbles.push(data);
+let data={
+el:bubble,
+audio,
+gain,
+x:100+Math.random()*400,
+y:100+Math.random()*300
 };
 
-/* FUSION SYSTEM */
+bubble.style.left=data.x+"px";
+bubble.style.top=data.y+"px";
+
+/* CLICK PLAY + LOOP */
+bubble.onclick=()=>{
+audio.currentTime=0;
+audio.play();
+
+audio.loop=!audio.loop;
+bubble.classList.toggle("active");
+};
+
+/* DRAG */
+let drag=false;
+
+bubble.onmousedown=()=>drag=true;
+
+document.onmousemove=(e)=>{
+if(!drag) return;
+
+const rect=container.getBoundingClientRect();
+
+data.x=e.clientX-rect.left;
+data.y=e.clientY-rect.top;
+
+bubble.style.left=data.x+"px";
+bubble.style.top=data.y+"px";
+
+checkFusion(data);
+};
+
+document.onmouseup=()=>drag=false;
+
+bubbles.push(data);
+};
+
+/* FUSION SIMPLE */
 function checkFusion(b){
- bubbles.forEach(other=>{
-  if(other===b) return;
+bubbles.forEach(o=>{
+if(o===b) return;
 
-  const dx=b.x-other.x;
-  const dy=b.y-other.y;
-  const dist=Math.sqrt(dx*dx+dy*dy);
+let dx=b.x-o.x;
+let dy=b.y-o.y;
+let d=Math.sqrt(dx*dx+dy*dy);
 
-  if(dist<80){
-   fuse(b,other);
-  }
- });
+if(d<80){
+b.gain.gain.value+=0.2;
+o.gain.gain.value+=0.2;
+
+core.style.transform="scale(1.2)";
+setTimeout(()=>core.style.transform="scale(1)",200);
+}
+});
 }
 
-/* FUSION EFFECT */
-function fuse(a,b){
- a.gain.gain.value += 0.2;
- b.gain.gain.value += 0.2;
-
- core.style.transform="scale(1.2)";
- setTimeout(()=>core.style.transform="scale(1)",200);
-}
-
-/* RECORD AUDIO */
+/* RECORD */
 function startRec(){
- chunks=[];
- recorder = new MediaRecorder(master.context?.destination?.stream || []);
+chunks=[];
+recorder=new MediaRecorder(dest.stream);
 
- recorder.ondataavailable = e=>chunks.push(e.data);
- recorder.start();
+recorder.ondataavailable=e=>chunks.push(e.data);
+recorder.start();
 
- alert("Recording...");
+alert("Recording...");
 }
 
 function stopRec(){
- recorder.stop();
+recorder.stop();
 
- recorder.onstop=()=>{
-  const blob = new Blob(chunks,{type:"audio/webm"});
-  const url = URL.createObjectURL(blob);
+recorder.onstop=()=>{
+const blob=new Blob(chunks,{type:"audio/webm"});
+const url=URL.createObjectURL(blob);
 
-  const a=document.createElement("a");
-  a.href=url;
-  a.download="song360_mix.mp3"; // navigateur = webm mais rename mp3
-  a.click();
- };
+const a=document.createElement("a");
+a.href=url;
+a.download="song360_mix.webm";
+a.click();
+};
 }
 </script>
 
