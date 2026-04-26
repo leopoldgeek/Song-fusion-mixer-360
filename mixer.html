@@ -1,51 +1,30 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
 <meta charset="UTF-8">
 <title>Mixer</title>
 <link rel="icon" href="favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-body{
- background:#020617;
- color:white;
- font-family:Arial;
- text-align:center;
-}
-button{
- margin:5px;
- padding:8px;
- background:#38bdf8;
- border:none;
- cursor:pointer;
-}
-.track{
- background:#111827;
- margin:10px auto;
- padding:10px;
- width:300px;
- border-radius:10px;
-}
-</style>
 </head>
 
-<body>
+<body style="background:#020617;color:white;text-align:center;font-family:Arial;">
 
 <h2>🎧 Mixer</h2>
 
 <button onclick="go('profile.html')">👤</button>
 <button onclick="go('cloud.html')">☁️</button>
 
+<br><br>
+
+<input type="file" id="file">
+<button onclick="addLocal()">📂 Import PC</button>
+<button onclick="loadCloud()">☁️ Import Cloud</button>
+
+<div id="list"></div>
+
 <br>
 
-<button onclick="importLocal()">📂 Import PC</button>
-<button onclick="importCloud()">☁️ Import Cloud</button>
-
-<div id="tracks"></div>
-
-<button onclick="playAll()">▶ Play All</button>
-<button onclick="saveMix()">💾 Save + Link</button>
+<button onclick="saveMix()">💾 Save Mix</button>
 
 <script>
 const supabase = window.supabase.createClient(
@@ -53,111 +32,59 @@ const supabase = window.supabase.createClient(
  "sb_publishable_pJJjozADUUOFcBp3uut0dg_yH2SVm8V"
 );
 
-const ctx = new AudioContext();
-let tracks=[];
+let tracks = [];
 
-/* TRACK CLASS */
-class Track{
- constructor(url){
-  this.audio=new Audio(url);
-  this.source=ctx.createMediaElementSource(this.audio);
+function addLocal(){
+ const input = document.createElement("input");
+ input.type = "file";
 
-  this.gain=ctx.createGain();
-  this.eq=ctx.createBiquadFilter();
-  this.eq.type="lowshelf";
-  this.delay=ctx.createDelay();
+ input.onchange = e=>{
+  const file = e.target.files[0];
+  const url = URL.createObjectURL(file);
 
-  this.source.connect(this.eq);
-  this.eq.connect(this.delay);
-  this.delay.connect(this.gain);
-  this.gain.connect(ctx.destination);
+  const audio = new Audio(url);
 
-  this.url=url;
- }
- play(){this.audio.play();}
-}
+  const btn = document.createElement("button");
+  btn.innerText = "▶ " + file.name;
 
-/* UI */
-function addTrack(track,name){
- const div=document.createElement("div");
- div.className="track";
+  btn.onclick = ()=>audio.play();
 
- div.innerHTML=`
- <b>${name}</b><br>
- <button>▶</button>
- Vol <input type="range" min="0" max="2" step="0.1" value="1">
- Bass <input type="range" min="0" max="2" step="0.1">
- Delay <input type="range" min="0" max="1" step="0.01">
- `;
+  list.appendChild(btn);
 
- const [play,vol,bass,delay]=div.querySelectorAll("button,input");
-
- play.onclick=()=>track.play();
- vol.oninput=()=>track.gain.gain.value=vol.value;
- bass.oninput=()=>track.eq.gain.value=bass.value*10;
- delay.oninput=()=>track.delay.delayTime.value=delay.value;
-
- tracks.push(track);
- tracksDiv.appendChild(div);
-}
-
-/* IMPORT */
-function importLocal(){
- const input=document.createElement("input");
- input.type="file";
-
- input.onchange=e=>{
-  const file=e.target.files[0];
-  const url=URL.createObjectURL(file);
-  addTrack(new Track(url),file.name);
+  tracks.push(url);
  };
 
  input.click();
 }
 
-async function importCloud(){
- const {data}=await supabase.from("sounds").select("*");
+async function loadCloud(){
+ const {data} = await supabase.from("sounds").select("*");
+
  data.forEach(s=>{
-  addTrack(new Track(s.url),s.name);
+  const btn = document.createElement("button");
+  btn.innerText = "▶ " + s.name;
+
+  btn.onclick = ()=>new Audio(s.url).play();
+
+  list.appendChild(btn);
+
+  tracks.push(s.url);
  });
 }
 
-/* PLAY ALL */
-function playAll(){
- tracks.forEach(t=>t.play());
-}
-
-/* SAVE MIX */
 async function saveMix(){
- const user=JSON.parse(localStorage.getItem("user"));
- if(!user)return alert("login");
+ const user = JSON.parse(localStorage.getItem("user"));
+ if(!user) return alert("login requis");
 
- const {data}=await supabase
-  .from("mixes")
-  .insert([{
-   user_id:user.id,
-   data:tracks.map(t=>t.url)
-  }])
-  .select();
+ await supabase.from("mixes").insert([{
+  user_id: user.id,
+  data: tracks
+ }]);
 
- const link=location.origin+"/mixer.html?mix="+data[0].id;
- navigator.clipboard.writeText(link);
-
- alert("🔗 lien copié !");
+ alert("Mix sauvegardé !");
 }
 
-/* LOAD LINK */
-const params=new URLSearchParams(location.search);
-if(params.get("mix")){
- supabase.from("mixes").select("*").eq("id",params.get("mix")).single()
- .then(({data})=>{
-  data.data.forEach(url=>{
-   addTrack(new Track(url),"cloud");
-  });
- });
-}
-
-function go(p){window.location=p;}
+function go(p){ window.location = p; }
 </script>
 
 </body>
