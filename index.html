@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Song 360 Fusion Mixer</title></title>
+  <title>Mixer Audio</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <style>
     body {
@@ -121,6 +121,14 @@
       opacity: 0.8;
       margin-top: 4px;
     }
+    .panel-section label {
+      font-size: 12px;
+      display: block;
+      margin-top: 6px;
+    }
+    .panel-section input[type="range"] {
+      width: 100%;
+    }
   </style>
 </head>
 <body>
@@ -159,24 +167,11 @@
 
     <div class="panel-section">
       <h2>Effets audio</h2>
-      <select id="effectSelect" size="10">
-        <option>Reverb légère</option>
-        <option>Reverb grande salle</option>
-        <option>Echo court</option>
-        <option>Echo long</option>
-        <option>Chorus</option>
-        <option>Flanger</option>
-        <option>Phaser</option>
-        <option>Distorsion douce</option>
-        <option>Distorsion forte</option>
-        <option>Filtre passe-bas</option>
-        <option>Filtre passe-haut</option>
-        <option>Compresseur</option>
-        <option>Pitch +1 ton</option>
-        <option>Pitch -1 ton</option>
-        <option>Stéréo élargie</option>
-      </select>
-      <div class="status">Effets listés (structure prête pour Web Audio).</div>
+      <label for="highSlider">HIGH (passe-haut)</label>
+      <input type="range" id="highSlider" min="0" max="1" step="0.01" value="0">
+      <label for="lowSlider">LOW (passe-bas)</label>
+      <input type="range" id="lowSlider" min="0" max="1" step="0.01" value="0">
+      <div class="status">HIGH/LOW comme une table DJ (en temps réel sur CORE).</div>
     </div>
 
     <div class="panel-section">
@@ -191,14 +186,16 @@
 <script>
 let audioCtx = null;
 let coreGain = null;
+let highFilter = null;
+let lowFilter = null;
 
-let coreBuffer = null;      // buffer fusionné CORE
-let coreSource = null;      // source en lecture
+let coreBuffer = null;
+let coreSource = null;
 let isPlaying = false;
 let startTime = 0;
 let pauseTime = 0;
 
-const tracks = [];          // pistes non fusionnées {id, name, buffer}
+const tracks = []; // {id, name, buffer}
 let draggedTrack = null;
 
 let mp3Blob = null;
@@ -212,20 +209,50 @@ const exportBtn = document.getElementById("exportBtn");
 const coreVolume = document.getElementById("coreVolume");
 const playStatus = document.getElementById("playStatus");
 const recordStatus = document.getElementById("recordStatus");
+const highSlider = document.getElementById("highSlider");
+const lowSlider = document.getElementById("lowSlider");
 
 exportBtn.disabled = true;
 
 function ensureAudioContext() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
     coreGain = audioCtx.createGain();
     coreGain.gain.value = coreVolume.value;
+
+    highFilter = audioCtx.createBiquadFilter();
+    highFilter.type = "highpass";
+    highFilter.frequency.value = 20;
+
+    lowFilter = audioCtx.createBiquadFilter();
+    lowFilter.type = "lowpass";
+    lowFilter.frequency.value = 20000;
+
+    highFilter.connect(lowFilter);
+    lowFilter.connect(coreGain);
     coreGain.connect(audioCtx.destination);
   }
 }
 
 coreVolume.oninput = () => {
   if (coreGain) coreGain.gain.value = coreVolume.value;
+};
+
+highSlider.oninput = () => {
+  if (!highFilter) return;
+  const v = parseFloat(highSlider.value);
+  const minF = 20;
+  const maxF = 2000;
+  highFilter.frequency.value = minF + v * (maxF - minF);
+};
+
+lowSlider.oninput = () => {
+  if (!lowFilter) return;
+  const v = parseFloat(lowSlider.value);
+  const minF = 500;
+  const maxF = 20000;
+  lowFilter.frequency.value = maxF - v * (maxF - minF);
 };
 
 async function fileToBuffer(file) {
@@ -235,7 +262,6 @@ async function fileToBuffer(file) {
 }
 
 function createCoreBubble() {
-  // Supprime l’ancienne bulle CORE si elle existe
   const oldCore = document.getElementById("core-bubble");
   if (oldCore) oldCore.remove();
 
@@ -375,7 +401,7 @@ function playCore(offset = 0) {
 
   coreSource = audioCtx.createBufferSource();
   coreSource.buffer = coreBuffer;
-  coreSource.connect(coreGain);
+  coreSource.connect(highFilter);
   startTime = audioCtx.currentTime - offset;
   coreSource.start(0, offset);
 }
@@ -398,7 +424,6 @@ playPauseBtn.onclick = () => {
   }
 };
 
-// Fusion réelle : mixage offline de CORE + piste
 async function fuseTrackIntoCore(track) {
   if (!coreBuffer || !track.buffer) return;
 
@@ -422,7 +447,6 @@ async function fuseTrackIntoCore(track) {
   pauseTime = 0;
 }
 
-// Encodage MP3 192 kbps via lamejs
 function encodeCoreToMp3() {
   if (!coreBuffer) return null;
 
