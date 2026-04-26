@@ -1,133 +1,50 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Mixer</title>
-<link rel="icon" href="favicon.png">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-body{
-background:#020617;
-color:white;
-font-family:Arial;
-text-align:center;
-}
-button{
-margin:5px;
-padding:10px;
-background:#38bdf8;
-border:none;
-cursor:pointer;
-}
-</style>
-</head>
-
-<body>
-
-<h2>🎧 Mixer</h2>
-
-<button onclick="go('profile.html')">👤</button>
-<button onclick="go('cloud.html')">☁️</button>
-
-<br><br>
-
-<button onclick="importLocal()">📂 Import PC</button>
-<button onclick="importCloud()">☁️ Import Cloud</button>
-
-<br><br>
-
-<div id="sounds"></div>
-
-<br>
-
-<button onclick="startRec()">🎙 Record</button>
-<button onclick="stopRec()">💾 Export MP3</button>
-
 <script>
-const supabase = window.supabase.createClient(
- "https://hnpfyxnodhthzxvwfnvl.supabase.co",
- "sb_publishable_pJJjozADUUOFcBp3uut0dg_yH2SVm8V"
-);
+const ctx = new AudioContext();
 
-let audios=[];
+/* MASTER */
+const masterGain = ctx.createGain();
+masterGain.gain.value = 1;
+masterGain.connect(ctx.destination);
 
-/* IMPORT LOCAL */
-function importLocal(){
- const input=document.createElement("input");
- input.type="file";
+/* TRACK CLASS */
+class Track{
+ constructor(url){
 
- input.onchange=e=>{
- const file=e.target.files[0];
- const url=URL.createObjectURL(file);
+  this.audio = new Audio(url);
+  this.source = ctx.createMediaElementSource(this.audio);
 
- createSound(url,file.name);
- };
+  /* EFFECTS */
+  this.gain = ctx.createGain();
+  this.eq = ctx.createBiquadFilter();
+  this.eq.type = "lowshelf";
 
- input.click();
+  this.delay = ctx.createDelay();
+  this.delay.delayTime.value = 0;
+
+  /* ROUTING */
+  this.source.connect(this.eq);
+  this.eq.connect(this.delay);
+  this.delay.connect(this.gain);
+  this.gain.connect(masterGain);
+ }
+
+ play(){
+  this.audio.currentTime = 0;
+  this.audio.play();
+ }
+
+ setVolume(v){
+  this.gain.gain.value = v;
+ }
+
+ setBass(v){
+  this.eq.gain.value = v * 10;
+ }
+
+ setDelay(v){
+  this.delay.delayTime.value = v;
+ }
 }
 
-/* IMPORT CLOUD */
-async function importCloud(){
- const {data}=await supabase.from("sounds").select("*");
-
- sounds.innerHTML="";
-
- data.forEach(s=>{
- const btn=document.createElement("button");
- btn.innerText=s.name;
-
- btn.onclick=()=>createSound(s.url,s.name);
-
- sounds.appendChild(btn);
- });
-}
-
-/* CREATE SOUND */
-function createSound(url,name){
- const audio=new Audio(url);
- audio.loop=true;
-
- const btn=document.createElement("button");
- btn.innerText="▶ "+name;
-
- btn.onclick=()=>audio.play();
-
- sounds.appendChild(btn);
-
- audios.push(audio);
-}
-
-/* RECORD */
-let mediaRecorder, chunks=[];
-
-function startRec(){
- const stream=new AudioContext().createMediaStreamDestination();
- mediaRecorder=new MediaRecorder(stream.stream);
-
- mediaRecorder.ondataavailable=e=>chunks.push(e.data);
- mediaRecorder.start();
-
- alert("recording...");
-}
-
-function stopRec(){
- mediaRecorder.stop();
-
- mediaRecorder.onstop=()=>{
- const blob=new Blob(chunks,{type:"audio/mp3"});
- const url=URL.createObjectURL(blob);
-
- const a=document.createElement("a");
- a.href=url;
- a.download="mix.mp3";
- a.click();
- };
-}
-
-/* NAV */
-function go(p){window.location=p;}
+let tracks = [];
 </script>
-
-</body>
-</html>
