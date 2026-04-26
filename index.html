@@ -2,8 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Song 360 Fusion MixerDJ</title>
-  <link rel="icon" type="image/png" href="favicon.png">
+  <title>Mixer Audio DJ</title>
   <style>
     body {
       margin: 0;
@@ -67,17 +66,6 @@
       gap: 6px;
       font-size: 12px;
       user-select: none;
-      cursor: grab;
-    }
-    .bubble.core {
-      cursor: default;
-    }
-    .bubble.dragging {
-      opacity: 0.4;
-    }
-    .core-highlight {
-      border: 2px solid #00ff99 !important;
-      box-shadow: 0 0 10px #00ff99;
     }
     .bubble-title {
       font-weight: 600;
@@ -189,7 +177,7 @@
 <body>
 
   <div class="main">
-    <header><h1>Song 360 Fusion Mixer DJ</h1></header>
+    <header><h1>Mixer Audio DJ</h1></header>
 
     <div class="controls-row">
       <div>
@@ -213,7 +201,6 @@
 
     <div class="volume-panel" id="volumePanel">
       <h2>Volumes du mix</h2>
-      <!-- lignes de volume ajoutées dynamiquement -->
     </div>
   </div>
 
@@ -250,422 +237,364 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
   <script>
-let audioCtx = null;
-let masterGain = null;
-let highFilter = null;
-let lowFilter = null;
-
-let isPlaying = false;
-let startTime = 0;
-let pauseTime = 0;
-
-let tracks = []; // {id, name, buffer, volume, isCore}
-let currentSources = []; // {id, source, gainNode}
-let fxEnabled = false;
-let mp3Blob = null;
-
-const baseInput = document.getElementById("baseSound");
-const addInput = document.getElementById("addTrack");
-const bubbleContainer = document.getElementById("bubbleContainer");
-const playPauseBtn = document.getElementById("playPauseBtn");
-const recordBtn = document.getElementById("recordBtn");
-const exportBtn = document.getElementById("exportBtn");
-const masterVolume = document.getElementById("masterVolume");
-const playStatus = document.getElementById("playStatus");
-const recordStatus = document.getElementById("recordStatus");
-const fxToggle = document.getElementById("fxToggle");
-const highSlider = document.getElementById("highSlider");
-const lowSlider = document.getElementById("lowSlider");
-const volumePanel = document.getElementById("volumePanel");
-
-exportBtn.disabled = true;
-
-function ensureAudioContext() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-    masterGain = audioCtx.createGain();
-    masterGain.gain.value = masterVolume.value;
-
-    highFilter = audioCtx.createBiquadFilter();
-    highFilter.type = "highpass";
-    highFilter.frequency.value = 20;
-
-    lowFilter = audioCtx.createBiquadFilter();
-    lowFilter.type = "lowpass";
-    lowFilter.frequency.value = 20000;
-
-    highFilter.connect(lowFilter);
-    lowFilter.connect(masterGain);
-    masterGain.connect(audioCtx.destination);
-  }
-}
-
-masterVolume.oninput = () => {
-  if (masterGain) masterGain.gain.value = masterVolume.value;
-};
-
-fxToggle.onchange = () => {
-  fxEnabled = fxToggle.checked;
-};
-
-highSlider.oninput = () => {
-  if (!highFilter) return;
-  const v = parseFloat(highSlider.value);
-  const minF = 20;
-  const maxF = 2000;
-  highFilter.frequency.value = minF + v * (maxF - minF);
-};
-
-lowSlider.oninput = () => {
-  if (!lowFilter) return;
-  const v = parseFloat(lowSlider.value);
-  const minF = 500;
-  const maxF = 20000;
-  lowFilter.frequency.value = maxF - v * (maxF - minF);
-};
-
-async function fileToBuffer(file) {
-  ensureAudioContext();
-  const arrayBuffer = await file.arrayBuffer();
-  return await audioCtx.decodeAudioData(arrayBuffer);
-}
-
-function createCoreDropBubble() {
-  let coreBubble = document.getElementById("core-bubble");
-  if (!coreBubble) {
-    coreBubble = document.createElement("div");
-    coreBubble.className = "bubble core";
-    coreBubble.id = "core-bubble";
-
-    const title = document.createElement("div");
-    title.className = "bubble-title";
-    title.textContent = "CORE (dépose ici pour ajouter au mix)";
-
-    coreBubble.appendChild(title);
-    bubbleContainer.appendChild(coreBubble);
-
-    enableCoreDrop(coreBubble);
-  }
-}
-
-function enableDrag(bubble, tempTrack) {
-  bubble.draggable = true;
-
-  bubble.addEventListener("dragstart", () => {
-    bubble.classList.add("dragging");
-    bubble.dataset.dragId = tempTrack.id;
-  });
-
-  bubble.addEventListener("dragend", () => {
-    bubble.classList.remove("dragging");
-  });
-}
-
-function enableCoreDrop(coreBubble) {
-  coreBubble.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    coreBubble.classList.add("core-highlight");
-  });
-
-  coreBubble.addEventListener("dragleave", () => {
-    coreBubble.classList.remove("core-highlight");
-  });
-
-  coreBubble.addEventListener("drop", (e) => {
-    e.preventDefault();
-    coreBubble.classList.remove("core-highlight");
-
-    const dragging = document.querySelector(".bubble.dragging");
-    if (!dragging) return;
-    const dragId = dragging.dataset.dragId;
-    if (!dragId) return;
-
-    const bubble = document.getElementById("bubble-temp-" + dragId);
-    if (!bubble || !bubble._trackTemp) return;
-
-    const temp = bubble._trackTemp;
-    const track = {
-      id: temp.id,
-      name: temp.name,
-      buffer: temp.buffer,
-      volume: 1,
-      isCore: false
-    };
-    tracks.push(track);
-    addVolumeLine(track);
-
-    bubble.remove();
-    playStatus.textContent = "Piste ajoutée au mix.";
-  });
-}
-
-function addVolumeLine(track) {
-  const line = document.createElement("div");
-  line.className = "volume-line";
-  line.id = "vol-" + track.id;
-
-  const label = document.createElement("span");
-  label.textContent = track.isCore ? "CORE" : track.name;
-
-  const slider = document.createElement("input");
-  slider.type = "range";
-  slider.min = 0;
-  slider.max = 1;
-  slider.step = 0.01;
-  slider.value = track.volume;
-
-  slider.oninput = () => {
-    track.volume = parseFloat(slider.value);
-    const srcObj = currentSources.find(s => s.id === track.id);
-    if (srcObj && srcObj.gainNode) {
-      srcObj.gainNode.gain.value = track.volume;
-    }
-  };
-
-  line.appendChild(label);
-  line.appendChild(slider);
-  volumePanel.appendChild(line);
-}
-
-async function addBase(file) {
-  const buffer = await fileToBuffer(file);
-
-  tracks = tracks.filter(t => !t.isCore);
-
-  const coreTrack = {
-    id: "core",
-    name: file.name,
-    buffer,
-    volume: 1,
-    isCore: true
-  };
-  tracks.unshift(coreTrack);
-
-  const oldCoreLine = document.getElementById("vol-core");
-  if (oldCoreLine) oldCoreLine.remove();
-  addVolumeLine(coreTrack);
-
-  createCoreDropBubble();
-
-  playPauseBtn.disabled = false;
-  recordBtn.disabled = false;
-  playStatus.textContent = "CORE chargé.";
-}
-
-baseInput.onchange = e => {
-  const f = e.target.files[0];
-  if (f) addBase(f);
-};
-
-addInput.onchange = e => {
-  [...e.target.files].forEach(async f => {
-    const buffer = await fileToBuffer(f);
-    const temp = {
-      id: Math.random().toString(36).slice(2),
-      name: f.name,
-      buffer
-    };
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.id = "bubble-temp-" + temp.id;
-
-    const title = document.createElement("div");
-    title.className = "bubble-title";
-    title.textContent = temp.name;
-
-    bubble.appendChild(title);
-    bubbleContainer.appendChild(bubble);
-
-    bubble._trackTemp = temp;
-    enableDrag(bubble, temp);
-
-    playStatus.textContent = "Piste prête, dépose-la sur CORE pour l'ajouter au mix.";
-  });
-};
-
-function stopPlayback() {
-  currentSources.forEach(s => {
-    try { s.source.stop(); } catch {}
-    try { s.source.disconnect(); } catch {}
-  });
-  currentSources = [];
-}
-
-function playMix(offset = 0) {
-  if (tracks.length === 0) return;
-  ensureAudioContext();
-  stopPlayback();
-
-  currentSources = [];
-
-  tracks.forEach(track => {
-    if (!track.buffer) return;
-
-    const source = audioCtx.createBufferSource();
-    source.buffer = track.buffer;
-
-    const gainNode = audioCtx.createGain();
-    gainNode.gain.value = track.volume;
-
-    if (fxEnabled) {
-      gainNode.connect(highFilter);
-    } else {
-      gainNode.connect(masterGain);
-    }
-
-    source.start(0, offset);
-
-    currentSources.push({
-      id: track.id,
-      source,
-      gainNode
-    });
-  });
-
-  startTime = audioCtx.currentTime - offset;
-}
-
-playPauseBtn.onclick = () => {
-  if (tracks.length === 0) return;
-  ensureAudioContext();
-
-  if (!isPlaying) {
-    playMix(pauseTime);
-    isPlaying = true;
-    playPauseBtn.textContent = "Pause";
-    playStatus.textContent = "Lecture du mix.";
-  } else {
-    pauseTime = audioCtx.currentTime - startTime;
-    stopPlayback();
-    isPlaying = false;
-    playPauseBtn.textContent = "Lecture";
-    playStatus.textContent = "En pause.";
-  }
-};
-function encodeMixToMp3() {
-  if (tracks.length === 0) return null;
-
-  const sampleRate = audioCtx ? audioCtx.sampleRate : 44100;
-  let maxLength = 0;
-  tracks.forEach(t => {
-    if (t.buffer && t.buffer.length > maxLength) {
-      maxLength = t.buffer.length;
-    }
-  });
-  if (maxLength === 0) return null;
-
-  const offlineCtx = new OfflineAudioContext(1, maxLength, sampleRate);
-
-  const masterOff = offlineCtx.createGain();
-  masterOff.gain.value = parseFloat(masterVolume.value);
-
-  let highOff = null;
-  let lowOff = null;
-
-  if (fxEnabled) {
-    highOff = offlineCtx.createBiquadFilter();
-    highOff.type = "highpass";
-    const vH = parseFloat(highSlider.value);
-    highOff.frequency.value = 20 + vH * (2000 - 20);
-
-    lowOff = offlineCtx.createBiquadFilter();
-    lowOff.type = "lowpass";
-    const vL = parseFloat(lowSlider.value);
-    lowOff.frequency.value = 20000 - vL * (20000 - 500);
-
-    highOff.connect(lowOff);
-    lowOff.connect(masterOff);
-  }
-
-  masterOff.connect(offlineCtx.destination);
-
-  tracks.forEach(track => {
-    if (!track.buffer) return;
-
-    const src = offlineCtx.createBufferSource();
-    src.buffer = track.buffer;
-
-    const g = offlineCtx.createGain();
-    g.gain.value = track.volume;
-
-    if (fxEnabled) {
-      g.connect(highOff);
-    } else {
-      g.connect(masterOff);
-    }
-
-    src.start(0);
-  });
-
-  return offlineCtx.startRendering().then(renderedBuffer => {
-    const numChannels = renderedBuffer.numberOfChannels;
-    const left = renderedBuffer.getChannelData(0);
-    let samples = left;
-
-    if (numChannels > 1) {
-      const right = renderedBuffer.getChannelData(1);
-      const len = left.length;
-      const mixed = new Float32Array(len);
-      for (let i = 0; i < len; i++) {
-        mixed[i] = (left[i] + right[i]) / 2;
+    let audioCtx = null;
+    let masterGain = null;
+    let highFilter = null;
+    let lowFilter = null;
+
+    let isPlaying = false;
+    let startTime = 0;
+    let pauseTime = 0;
+
+    let tracks = []; // {id, name, buffer, volume, isCore}
+    let currentSources = []; // {id, source, gainNode}
+    let fxEnabled = false;
+    let mp3Blob = null;
+
+    const baseInput = document.getElementById("baseSound");
+    const addInput = document.getElementById("addTrack");
+    const bubbleContainer = document.getElementById("bubbleContainer");
+    const playPauseBtn = document.getElementById("playPauseBtn");
+    const recordBtn = document.getElementById("recordBtn");
+    const exportBtn = document.getElementById("exportBtn");
+    const masterVolume = document.getElementById("masterVolume");
+    const playStatus = document.getElementById("playStatus");
+    const recordStatus = document.getElementById("recordStatus");
+    const fxToggle = document.getElementById("fxToggle");
+    const highSlider = document.getElementById("highSlider");
+    const lowSlider = document.getElementById("lowSlider");
+    const volumePanel = document.getElementById("volumePanel");
+
+    exportBtn.disabled = true;
+
+    function ensureAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = masterVolume.value;
+
+        highFilter = audioCtx.createBiquadFilter();
+        highFilter.type = "highpass";
+        highFilter.frequency.value = 20;
+
+        lowFilter = audioCtx.createBiquadFilter();
+        lowFilter.type = "lowpass";
+        lowFilter.frequency.value = 20000;
+
+        highFilter.connect(lowFilter);
+        lowFilter.connect(masterGain);
+        masterGain.connect(audioCtx.destination);
       }
-      samples = mixed;
     }
 
-    const mp3Encoder = new lamejs.Mp3Encoder(1, sampleRate, 192);
-    const blockSize = 1152;
-    const mp3Data = [];
+    masterVolume.oninput = () => {
+      if (masterGain) masterGain.gain.value = masterVolume.value;
+    };
 
-    let i = 0;
-    while (i < samples.length) {
-      const chunk = samples.subarray(i, i + blockSize);
-      const buffer = new Int16Array(chunk.length);
-      for (let j = 0; j < chunk.length; j++) {
-        let s = Math.max(-1, Math.min(1, chunk[j]));
-        buffer[j] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    fxToggle.onchange = () => {
+      fxEnabled = fxToggle.checked;
+    };
+
+    highSlider.oninput = () => {
+      if (!highFilter) return;
+      const v = parseFloat(highSlider.value);
+      const minF = 20;
+      const maxF = 2000;
+      highFilter.frequency.value = minF + v * (maxF - minF);
+    };
+
+    lowSlider.oninput = () => {
+      if (!lowFilter) return;
+      const v = parseFloat(lowSlider.value);
+      const minF = 500;
+      const maxF = 20000;
+      lowFilter.frequency.value = maxF - v * (maxF - minF);
+    };
+
+    async function fileToBuffer(file) {
+      ensureAudioContext();
+      const arrayBuffer = await file.arrayBuffer();
+      return await audioCtx.decodeAudioData(arrayBuffer);
+    }
+
+    function addVolumeLine(track) {
+      const line = document.createElement("div");
+      line.className = "volume-line";
+      line.id = "vol-" + track.id;
+
+      const label = document.createElement("span");
+      label.textContent = track.isCore ? "CORE" : track.name;
+
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.min = 0;
+      slider.max = 1;
+      slider.step = 0.01;
+      slider.value = track.volume;
+
+      slider.oninput = () => {
+        track.volume = parseFloat(slider.value);
+        const srcObj = currentSources.find(s => s.id === track.id);
+        if (srcObj && srcObj.gainNode) {
+          srcObj.gainNode.gain.value = track.volume;
+        }
+      };
+
+      line.appendChild(label);
+      line.appendChild(slider);
+      volumePanel.appendChild(line);
+    }
+
+    function addBubble(track) {
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+
+      const title = document.createElement("div");
+      title.className = "bubble-title";
+      title.textContent = track.isCore ? "CORE : " + track.name : track.name;
+
+      bubble.appendChild(title);
+      bubbleContainer.appendChild(bubble);
+    }
+
+    async function addBase(file) {
+      const buffer = await fileToBuffer(file);
+
+      tracks = tracks.filter(t => !t.isCore);
+
+      const coreTrack = {
+        id: "core",
+        name: file.name,
+        buffer,
+        volume: 1,
+        isCore: true
+      };
+      tracks.unshift(coreTrack);
+
+      const oldCoreLine = document.getElementById("vol-core");
+      if (oldCoreLine) oldCoreLine.remove();
+      addVolumeLine(coreTrack);
+
+      bubbleContainer.innerHTML = "";
+      addBubble(coreTrack);
+
+      playPauseBtn.disabled = false;
+      recordBtn.disabled = false;
+      playStatus.textContent = "CORE chargé.";
+    }
+
+    async function addTrackFile(file) {
+      const buffer = await fileToBuffer(file);
+      const track = {
+        id: Math.random().toString(36).slice(2),
+        name: file.name,
+        buffer,
+        volume: 1,
+        isCore: false
+      };
+      tracks.push(track);
+      addVolumeLine(track);
+      addBubble(track);
+      playStatus.textContent = "Piste ajoutée au mix.";
+    }
+
+    baseInput.onchange = e => {
+      const f = e.target.files[0];
+      if (f) addBase(f);
+    };
+
+    addInput.onchange = e => {
+      [...e.target.files].forEach(f => addTrackFile(f));
+    };
+
+    function stopPlayback() {
+      currentSources.forEach(s => {
+        try { s.source.stop(); } catch {}
+        try { s.source.disconnect(); } catch {}
+      });
+      currentSources = [];
+    }
+
+    function playMix(offset = 0) {
+      if (tracks.length === 0) return;
+      ensureAudioContext();
+      stopPlayback();
+
+      currentSources = [];
+
+      tracks.forEach(track => {
+        if (!track.buffer) return;
+
+        const source = audioCtx.createBufferSource();
+        source.buffer = track.buffer;
+
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = track.volume;
+
+        if (fxEnabled) {
+          gainNode.connect(highFilter);
+        } else {
+          gainNode.connect(masterGain);
+        }
+
+        source.start(0, offset);
+
+        currentSources.push({
+          id: track.id,
+          source,
+          gainNode
+        });
+      });
+
+      startTime = audioCtx.currentTime - offset;
+    }
+
+    playPauseBtn.onclick = () => {
+      if (tracks.length === 0) return;
+      ensureAudioContext();
+
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume();
       }
-      const mp3buf = mp3Encoder.encodeBuffer(buffer);
-      if (mp3buf.length > 0) mp3Data.push(mp3buf);
-      i += blockSize;
+
+      if (!isPlaying) {
+        playMix(pauseTime);
+        isPlaying = true;
+        playPauseBtn.textContent = "Pause";
+        playStatus.textContent = "Lecture du mix.";
+      } else {
+        pauseTime = audioCtx.currentTime - startTime;
+        stopPlayback();
+        isPlaying = false;
+        playPauseBtn.textContent = "Lecture";
+        playStatus.textContent = "En pause.";
+      }
+    };
+
+    function encodeMixToMp3() {
+      if (tracks.length === 0) return null;
+
+      const sampleRate = audioCtx ? audioCtx.sampleRate : 44100;
+      let maxLength = 0;
+      tracks.forEach(t => {
+        if (t.buffer && t.buffer.length > maxLength) {
+          maxLength = t.buffer.length;
+        }
+      });
+      if (maxLength === 0) return null;
+
+      const offlineCtx = new OfflineAudioContext(1, maxLength, sampleRate);
+
+      const masterOff = offlineCtx.createGain();
+      masterOff.gain.value = parseFloat(masterVolume.value);
+
+      let highOff = null;
+      let lowOff = null;
+
+      if (fxEnabled) {
+        highOff = offlineCtx.createBiquadFilter();
+        highOff.type = "highpass";
+        const vH = parseFloat(highSlider.value);
+        highOff.frequency.value = 20 + vH * (2000 - 20);
+
+        lowOff = offlineCtx.createBiquadFilter();
+        lowOff.type = "lowpass";
+        const vL = parseFloat(lowSlider.value);
+        lowOff.frequency.value = 20000 - vL * (20000 - 500);
+
+        highOff.connect(lowOff);
+        lowOff.connect(masterOff);
+      }
+
+      masterOff.connect(offlineCtx.destination);
+
+      tracks.forEach(track => {
+        if (!track.buffer) return;
+
+        const src = offlineCtx.createBufferSource();
+        src.buffer = track.buffer;
+
+        const g = offlineCtx.createGain();
+        g.gain.value = track.volume;
+
+        if (fxEnabled) {
+          g.connect(highOff);
+        } else {
+          g.connect(masterOff);
+        }
+
+        src.start(0);
+      });
+
+      return offlineCtx.startRendering().then(renderedBuffer => {
+        const numChannels = renderedBuffer.numberOfChannels;
+        const left = renderedBuffer.getChannelData(0);
+        let samples = left;
+
+        if (numChannels > 1) {
+          const right = renderedBuffer.getChannelData(1);
+          const len = left.length;
+          const mixed = new Float32Array(len);
+          for (let i = 0; i < len; i++) {
+            mixed[i] = (left[i] + right[i]) / 2;
+          }
+          samples = mixed;
+        }
+
+        const mp3Encoder = new lamejs.Mp3Encoder(1, sampleRate, 192);
+        const blockSize = 1152;
+        const mp3Data = [];
+
+        let i = 0;
+        while (i < samples.length) {
+          const chunk = samples.subarray(i, i + blockSize);
+          const buffer = new Int16Array(chunk.length);
+          for (let j = 0; j < chunk.length; j++) {
+            let s = Math.max(-1, Math.min(1, chunk[j]));
+            buffer[j] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+          const mp3buf = mp3Encoder.encodeBuffer(buffer);
+          if (mp3buf.length > 0) mp3Data.push(mp3buf);
+          i += blockSize;
+        }
+
+        const end = mp3Encoder.flush();
+        if (end.length > 0) mp3Data.push(end);
+
+        return new Blob(mp3Data, { type: "audio/mpeg" });
+      });
     }
 
-    const end = mp3Encoder.flush();
-    if (end.length > 0) mp3Data.push(end);
+    recordBtn.onclick = () => {
+      if (tracks.length === 0) {
+        recordStatus.textContent = "Aucun mix à enregistrer.";
+        return;
+      }
+      ensureAudioContext();
+      recordStatus.textContent = "Encodage MP3 en cours...";
+      encodeMixToMp3().then(blob => {
+        if (blob) {
+          mp3Blob = blob;
+          recordStatus.textContent = "MP3 prêt. Clique sur Exporter.";
+          exportBtn.disabled = false;
+        } else {
+          recordStatus.textContent = "Erreur encodage MP3.";
+        }
+      });
+    };
 
-    return new Blob(mp3Data, { type: "audio/mpeg" });
-  });
-}
-
-recordBtn.onclick = () => {
-  if (tracks.length === 0) {
-    recordStatus.textContent = "Aucun mix à enregistrer.";
-    return;
-  }
-  ensureAudioContext();
-  recordStatus.textContent = "Encodage MP3 en cours...";
-  encodeMixToMp3().then(blob => {
-    if (blob) {
-      mp3Blob = blob;
-      recordStatus.textContent = "MP3 prêt. Clique sur Exporter.";
-      exportBtn.disabled = false;
-    } else {
-      recordStatus.textContent = "Erreur encodage MP3.";
-    }
-  });
-};
-
-exportBtn.onclick = () => {
-  if (!mp3Blob) return;
-  const url = URL.createObjectURL(mp3Blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "mix_dj.mp3";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
+    exportBtn.onclick = () => {
+      if (!mp3Blob) return;
+      const url = URL.createObjectURL(mp3Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "mix_dj.mp3";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
   </script>
 </body>
 </html>
