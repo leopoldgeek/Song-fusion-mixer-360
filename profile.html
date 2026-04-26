@@ -5,27 +5,57 @@
 <title>Profil</title>
 <link rel="icon" href="favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body{
+background:#020617;
+color:white;
+font-family:Arial;
+text-align:center;
+}
+.card{
+margin:auto;
+margin-top:80px;
+width:300px;
+padding:20px;
+background:#111827;
+border-radius:15px;
+}
+input{
+margin:5px;
+padding:8px;
+width:80%;
+}
+button{
+margin:5px;
+padding:8px;
+background:#38bdf8;
+border:none;
+cursor:pointer;
+}
+</style>
 </head>
 
-<body style="background:#020617;color:white;text-align:center;font-family:Arial;">
+<body>
 
-<h2>👤 Profil</h2>
-
-<button onclick="go('mixer.html')">🎧 Mixer</button>
-<button onclick="go('cloud.html')">☁️ Cloud</button>
-
-<br><br>
+<div class="card">
+<h2>👤 Connexion</h2>
 
 <input id="email" placeholder="email">
-<input id="password" type="password">
+<input id="password" type="password" placeholder="mot de passe">
 
 <br>
 
 <button onclick="signup()">Créer compte</button>
-<button onclick="login()">Login</button>
-<button onclick="logout()">Logout</button>
+<button onclick="login()">Se connecter</button>
 
 <p id="status"></p>
+
+<br>
+
+<button onclick="go('mixer.html')">🎧 Mixer</button>
+<button onclick="go('cloud.html')">☁️ Cloud</button>
+</div>
 
 <script>
 const supabase = window.supabase.createClient(
@@ -33,41 +63,27 @@ const supabase = window.supabase.createClient(
  "sb_publishable_pJJjozADUUOFcBp3uut0dg_yH2SVm8V"
 );
 
-let user = JSON.parse(localStorage.getItem("user"));
-
-function update(){
- status.innerText = user ? "Connecté : " + user.email : "Non connecté";
-}
-update();
-
 async function signup(){
- const {error} = await supabase.auth.signUp({
+ await supabase.auth.signUp({
   email:email.value,
   password:password.value
  });
- alert(error ? error.message : "Compte créé !");
+ alert("Compte créé !");
 }
 
 async function login(){
- const {data,error} = await supabase.auth.signInWithPassword({
+ const {data,error}=await supabase.auth.signInWithPassword({
   email:email.value,
   password:password.value
  });
- if(error) return alert(error.message);
 
- user = data.user;
- localStorage.setItem("user", JSON.stringify(user));
- update();
+ if(error)return alert(error.message);
+
+ localStorage.setItem("user",JSON.stringify(data.user));
+ status.innerText="Connecté";
 }
 
-async function logout(){
- await supabase.auth.signOut();
- user = null;
- localStorage.removeItem("user");
- update();
-}
-
-function go(p){ window.location = p; }
+function go(p){window.location=p;}
 </script>
 
 </body>
