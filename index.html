@@ -1,600 +1,250 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Mixer Audio DJ</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: system-ui, sans-serif;
-      display: flex;
-      height: 100vh;
-      background: #111;
-      color: #f5f5f5;
-    }
-    .main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding: 16px;
-      box-sizing: border-box;
-    }
-    header h1 {
-      margin: 0;
-      font-size: 20px;
-    }
-    .controls-row {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-    }
-    button {
-      background: #2b6cb0;
-      border: none;
-      color: white;
-      padding: 8px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    button:disabled {
-      background: #555;
-      cursor: default;
-    }
-    .bubble-container {
-      flex: 1;
-      border-radius: 8px;
-      border: 1px solid #333;
-      padding: 12px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-content: flex-start;
-      overflow-y: auto;
-      background: radial-gradient(circle at top left, #1f2933, #050608);
-    }
-    .bubble {
-      min-width: 140px;
-      max-width: 180px;
-      padding: 10px;
-      border-radius: 20px;
-      background: rgba(59, 130, 246, 0.15);
-      border: 1px solid rgba(59, 130, 246, 0.5);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 12px;
-      user-select: none;
-    }
-    .bubble-title {
-      font-weight: 600;
-      text-align: center;
-    }
-    .side-panel {
-      width: 260px;
-      border-left: 1px solid #333;
-      padding: 16px;
-      box-sizing: border-box;
-      background: #050608;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .panel-section {
-      border-radius: 8px;
-      border: 1px solid #333;
-      padding: 10px;
-      background: #111827;
-    }
-    .panel-section h2 {
-      margin: 0 0 8px 0;
-      font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #9ca3af;
-    }
-    .status {
-      font-size: 12px;
-      opacity: 0.8;
-      margin-top: 4px;
-    }
-    .panel-section label {
-      font-size: 12px;
-      display: block;
-      margin-top: 6px;
-    }
-    .panel-section input[type="range"] {
-      width: 100%;
-    }
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 46px;
-      height: 24px;
-      margin-bottom: 10px;
-    }
-    .switch input { display: none; }
-    .slider-round {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0;
-      right: 0; bottom: 0;
-      background-color: #444;
-      transition: .3s;
-      border-radius: 24px;
-    }
-    .slider-round:before {
-      position: absolute;
-      content: "";
-      height: 18px; width: 18px;
-      left: 3px; bottom: 3px;
-      background-color: white;
-      transition: .3s;
-      border-radius: 50%;
-    }
-    input:checked + .slider-round {
-      background-color: #00ff99;
-    }
-    input:checked + .slider-round:before {
-      transform: translateX(22px);
-    }
-    .volume-panel {
-      margin-top: 10px;
-      border-top: 1px solid #333;
-      padding-top: 8px;
-      background: #020617;
-      max-height: 180px;
-      overflow-y: auto;
-      border-radius: 8px;
-    }
-    .volume-panel h2 {
-      margin: 0 0 6px 0;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #9ca3af;
-    }
-    .volume-line {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 6px;
-      font-size: 12px;
-    }
-    .volume-line span {
-      min-width: 80px;
-      max-width: 120px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .volume-line input[type="range"] {
-      flex: 1;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Song 360 Fusion Mixer</title>
+<style>
+body {
+  margin: 0;
+  font-family: Arial;
+  background: #0b0f1a;
+  color: white;
+  overflow: hidden;
+}
+
+/* TOP BAR */
+#topbar {
+  height: 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background: #11182b;
+}
+
+button {
+  background: #2b6cff;
+  border: none;
+  padding: 10px;
+  color: white;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-right: 5px;
+}
+
+/* CENTER */
+#workspace {
+  display: flex;
+  height: calc(100vh - 140px);
+}
+
+#canvas {
+  flex: 1;
+  position: relative;
+  background: radial-gradient(circle, #1b2a4a, #05070f);
+  overflow: hidden;
+}
+
+.bubble {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #2b6cff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  user-select: none;
+}
+
+/* RIGHT EFFECTS */
+#effects {
+  width: 220px;
+  background: #0f1629;
+  padding: 10px;
+}
+
+.effect {
+  margin: 10px 0;
+  padding: 8px;
+  background: #1b2a4a;
+  border-radius: 8px;
+}
+
+/* BOTTOM VOLUME */
+#bottom {
+  height: 80px;
+  background: #11182b;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  padding: 10px;
+}
+
+.track {
+  margin-right: 15px;
+}
+</style>
 </head>
 <body>
 
-  <div class="main">
-    <header><h1>Mixer Audio DJ</h1></header>
-
-    <div class="controls-row">
-      <div>
-        <label>Son de base (CORE) :</label>
-        <input type="file" id="baseSound" accept="audio/*">
-      </div>
-
-      <div>
-        <label>Ajouter sons :</label>
-        <input type="file" id="addTrack" accept="audio/*" multiple>
-      </div>
-
-      <div>
-        <button id="playPauseBtn" disabled>Lecture</button>
-        <button id="recordBtn" disabled>Enregistrer</button>
-        <button id="exportBtn" disabled>Exporter MP3</button>
-      </div>
-    </div>
-
-    <div class="bubble-container" id="bubbleContainer"></div>
-
-    <div class="volume-panel" id="volumePanel">
-      <h2>Volumes du mix</h2>
-    </div>
+<!-- TOP -->
+<div id="topbar">
+  <div>
+    <button onclick="playAll()">▶ Play</button>
+    <button onclick="pauseAll()">⏸ Pause</button>
+    <button onclick="startRecord()">⏺ Record</button>
+    <button onclick="downloadMix()">⬇ Download</button>
   </div>
+  <div>🎧 Song 360 Fusion Mixer</div>
+</div>
 
-  <aside class="side-panel">
-    <div class="panel-section">
-      <h2>Mix global</h2>
-      <label>Volume master</label>
-      <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="1">
-      <div class="status" id="playStatus">Aucun son chargé.</div>
-    </div>
+<!-- MAIN -->
+<div id="workspace">
 
-    <div class="panel-section">
-      <h2>Effets DJ</h2>
-      <label>Activer les effets</label>
-      <label class="switch">
-        <input type="checkbox" id="fxToggle">
-        <span class="slider-round"></span>
-      </label>
+  <!-- CENTER -->
+  <div id="canvas"></div>
 
-      <label for="highSlider">HIGH (passe-haut)</label>
-      <input type="range" id="highSlider" min="0" max="1" step="0.01" value="0">
+  <!-- EFFECTS -->
+  <div id="effects">
+    <h3>🎛 Effets</h3>
+    <div class="effect">Reverb</div>
+    <div class="effect">Bass Boost</div>
+    <div class="effect">Echo</div>
+    <div class="effect">Distortion</div>
+    <div class="effect">Low Pass</div>
+  </div>
+</div>
 
-      <label for="lowSlider">LOW (passe-bas)</label>
-      <input type="range" id="lowSlider" min="0" max="1" step="0.01" value="0">
+<!-- BOTTOM -->
+<div id="bottom"></div>
 
-      <div class="status">HIGH/LOW agissent sur tout le mix si l’interrupteur est ON.</div>
-    </div>
+<script>
+const canvas = document.getElementById("canvas");
+const bottom = document.getElementById("bottom");
 
-    <div class="panel-section">
-      <h2>Enregistrement</h2>
-      <div class="status" id="recordStatus">En attente.</div>
-    </div>
-  </aside>
+let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let sources = [];
+let gainNodes = [];
+let recorder;
+let dest = audioCtx.createMediaStreamDestination();
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
-  <script>
-    let audioCtx = null;
-    let masterGain = null;
-    let highFilter = null;
-    let lowFilter = null;
+/* ADD SAMPLE BUBBLE */
+function addAudio(file) {
+  const reader = new FileReader();
 
-    let isPlaying = false;
-    let startTime = 0;
-    let pauseTime = 0;
+  reader.onload = function(e) {
+    audioCtx.decodeAudioData(e.target.result, buffer => {
 
-    let tracks = []; // {id, name, buffer, volume, isCore}
-    let currentSources = []; // {id, source, gainNode}
-    let fxEnabled = false;
-    let mp3Blob = null;
+      let source = audioCtx.createBufferSource();
+      source.buffer = buffer;
 
-    const baseInput = document.getElementById("baseSound");
-    const addInput = document.getElementById("addTrack");
-    const bubbleContainer = document.getElementById("bubbleContainer");
-    const playPauseBtn = document.getElementById("playPauseBtn");
-    const recordBtn = document.getElementById("recordBtn");
-    const exportBtn = document.getElementById("exportBtn");
-    const masterVolume = document.getElementById("masterVolume");
-    const playStatus = document.getElementById("playStatus");
-    const recordStatus = document.getElementById("recordStatus");
-    const fxToggle = document.getElementById("fxToggle");
-    const highSlider = document.getElementById("highSlider");
-    const lowSlider = document.getElementById("lowSlider");
-    const volumePanel = document.getElementById("volumePanel");
+      let gain = audioCtx.createGain();
+      gain.gain.value = 1;
 
-    exportBtn.disabled = true;
+      source.connect(gain);
+      gain.connect(audioCtx.destination);
+      gain.connect(dest);
 
-    function ensureAudioContext() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      sources.push(source);
+      gainNodes.push(gain);
 
-        masterGain = audioCtx.createGain();
-        masterGain.gain.value = masterVolume.value;
+      createBubble(file.name, source, gain);
+      createVolumeControl(gain, file.name);
+    });
+  };
 
-        highFilter = audioCtx.createBiquadFilter();
-        highFilter.type = "highpass";
-        highFilter.frequency.value = 20;
+  reader.readAsArrayBuffer(file);
+}
 
-        lowFilter = audioCtx.createBiquadFilter();
-        lowFilter.type = "lowpass";
-        lowFilter.frequency.value = 20000;
+/* BUBBLE */
+function createBubble(name, source, gain) {
+  let div = document.createElement("div");
+  div.className = "bubble";
+  div.innerText = name.slice(0,6);
 
-        highFilter.connect(lowFilter);
-        lowFilter.connect(masterGain);
-        masterGain.connect(audioCtx.destination);
-      }
+  div.style.left = Math.random()*400 + "px";
+  div.style.top = Math.random()*300 + "px";
+
+  let isDragging = false;
+
+  div.onmousedown = () => isDragging = true;
+  document.onmouseup = () => isDragging = false;
+
+  document.onmousemove = (e) => {
+    if(isDragging){
+      div.style.left = e.pageX + "px";
+      div.style.top = e.pageY + "px";
     }
+  };
 
-    masterVolume.oninput = () => {
-      if (masterGain) masterGain.gain.value = masterVolume.value;
-    };
+  div.ondblclick = () => {
+    // fusion = boost volume
+    gain.gain.value += 0.3;
+  };
 
-    fxToggle.onchange = () => {
-      fxEnabled = fxToggle.checked;
-    };
+  canvas.appendChild(div);
+}
 
-    highSlider.oninput = () => {
-      if (!highFilter) return;
-      const v = parseFloat(highSlider.value);
-      const minF = 20;
-      const maxF = 2000;
-      highFilter.frequency.value = minF + v * (maxF - minF);
-    };
+/* VOLUME CONTROL */
+function createVolumeControl(gain, name){
+  let div = document.createElement("div");
+  div.className = "track";
 
-    lowSlider.oninput = () => {
-      if (!lowFilter) return;
-      const v = parseFloat(lowSlider.value);
-      const minF = 500;
-      const maxF = 20000;
-      lowFilter.frequency.value = maxF - v * (maxF - minF);
-    };
+  div.innerHTML = `
+    <div>${name.slice(0,10)}</div>
+    <input type="range" min="0" max="2" step="0.01" value="1">
+  `;
 
-    async function fileToBuffer(file) {
-      ensureAudioContext();
-      const arrayBuffer = await file.arrayBuffer();
-      return await audioCtx.decodeAudioData(arrayBuffer);
-    }
+  let slider = div.querySelector("input");
+  slider.oninput = () => {
+    gain.gain.value = slider.value;
+  };
 
-    function addVolumeLine(track) {
-      const line = document.createElement("div");
-      line.className = "volume-line";
-      line.id = "vol-" + track.id;
+  bottom.appendChild(div);
+}
 
-      const label = document.createElement("span");
-      label.textContent = track.isCore ? "CORE" : track.name;
+/* PLAY */
+function playAll(){
+  audioCtx.resume();
+  sources.forEach(s => {
+    try { s.start(); } catch(e){}
+  });
+}
 
-      const slider = document.createElement("input");
-      slider.type = "range";
-      slider.min = 0;
-      slider.max = 1;
-      slider.step = 0.01;
-      slider.value = track.volume;
+/* PAUSE */
+function pauseAll(){
+  audioCtx.suspend();
+}
 
-      slider.oninput = () => {
-        track.volume = parseFloat(slider.value);
-        const srcObj = currentSources.find(s => s.id === track.id);
-        if (srcObj && srcObj.gainNode) {
-          srcObj.gainNode.gain.value = track.volume;
-        }
-      };
+/* RECORD */
+function startRecord(){
+  recorder = new MediaRecorder(dest.stream);
+  recorder.start();
+  recorder.ondataavailable = e => {
+    let url = URL.createObjectURL(e.data);
+    window.recordedBlob = e.data;
+    window.recordedURL = url;
+  };
+}
 
-      line.appendChild(label);
-      line.appendChild(slider);
-      volumePanel.appendChild(line);
-    }
+/* DOWNLOAD */
+function downloadMix(){
+  if(!window.recordedBlob) return alert("Pas encore enregistré !");
+  let a = document.createElement("a");
+  a.href = window.recordedURL;
+  a.download = "song360_mix.webm";
+  a.click();
+}
 
-    function addBubble(track) {
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
+/* DROP FILE */
+document.body.ondragover = e => e.preventDefault();
+document.body.ondrop = e => {
+  e.preventDefault();
+  [...e.dataTransfer.files].forEach(addAudio);
+};
+</script>
 
-      const title = document.createElement("div");
-      title.className = "bubble-title";
-      title.textContent = track.isCore ? "CORE : " + track.name : track.name;
-
-      bubble.appendChild(title);
-      bubbleContainer.appendChild(bubble);
-    }
-
-    async function addBase(file) {
-      const buffer = await fileToBuffer(file);
-
-      tracks = tracks.filter(t => !t.isCore);
-
-      const coreTrack = {
-        id: "core",
-        name: file.name,
-        buffer,
-        volume: 1,
-        isCore: true
-      };
-      tracks.unshift(coreTrack);
-
-      const oldCoreLine = document.getElementById("vol-core");
-      if (oldCoreLine) oldCoreLine.remove();
-      addVolumeLine(coreTrack);
-
-      bubbleContainer.innerHTML = "";
-      addBubble(coreTrack);
-
-      playPauseBtn.disabled = false;
-      recordBtn.disabled = false;
-      playStatus.textContent = "CORE chargé.";
-    }
-
-    async function addTrackFile(file) {
-      const buffer = await fileToBuffer(file);
-      const track = {
-        id: Math.random().toString(36).slice(2),
-        name: file.name,
-        buffer,
-        volume: 1,
-        isCore: false
-      };
-      tracks.push(track);
-      addVolumeLine(track);
-      addBubble(track);
-      playStatus.textContent = "Piste ajoutée au mix.";
-    }
-
-    baseInput.onchange = e => {
-      const f = e.target.files[0];
-      if (f) addBase(f);
-    };
-
-    addInput.onchange = e => {
-      [...e.target.files].forEach(f => addTrackFile(f));
-    };
-
-    function stopPlayback() {
-      currentSources.forEach(s => {
-        try { s.source.stop(); } catch {}
-        try { s.source.disconnect(); } catch {}
-      });
-      currentSources = [];
-    }
-
-    function playMix(offset = 0) {
-      if (tracks.length === 0) return;
-      ensureAudioContext();
-      stopPlayback();
-
-      currentSources = [];
-
-      tracks.forEach(track => {
-        if (!track.buffer) return;
-
-        const source = audioCtx.createBufferSource();
-        source.buffer = track.buffer;
-
-        const gainNode = audioCtx.createGain();
-        gainNode.gain.value = track.volume;
-
-        if (fxEnabled) {
-          gainNode.connect(highFilter);
-        } else {
-          gainNode.connect(masterGain);
-        }
-
-        source.start(0, offset);
-
-        currentSources.push({
-          id: track.id,
-          source,
-          gainNode
-        });
-      });
-
-      startTime = audioCtx.currentTime - offset;
-    }
-
-    playPauseBtn.onclick = () => {
-      if (tracks.length === 0) return;
-      ensureAudioContext();
-
-      if (audioCtx.state === "suspended") {
-        audioCtx.resume();
-      }
-
-      if (!isPlaying) {
-        playMix(pauseTime);
-        isPlaying = true;
-        playPauseBtn.textContent = "Pause";
-        playStatus.textContent = "Lecture du mix.";
-      } else {
-        pauseTime = audioCtx.currentTime - startTime;
-        stopPlayback();
-        isPlaying = false;
-        playPauseBtn.textContent = "Lecture";
-        playStatus.textContent = "En pause.";
-      }
-    };
-
-    function encodeMixToMp3() {
-      if (tracks.length === 0) return null;
-
-      const sampleRate = audioCtx ? audioCtx.sampleRate : 44100;
-      let maxLength = 0;
-      tracks.forEach(t => {
-        if (t.buffer && t.buffer.length > maxLength) {
-          maxLength = t.buffer.length;
-        }
-      });
-      if (maxLength === 0) return null;
-
-      const offlineCtx = new OfflineAudioContext(1, maxLength, sampleRate);
-
-      const masterOff = offlineCtx.createGain();
-      masterOff.gain.value = parseFloat(masterVolume.value);
-
-      let highOff = null;
-      let lowOff = null;
-
-      if (fxEnabled) {
-        highOff = offlineCtx.createBiquadFilter();
-        highOff.type = "highpass";
-        const vH = parseFloat(highSlider.value);
-        highOff.frequency.value = 20 + vH * (2000 - 20);
-
-        lowOff = offlineCtx.createBiquadFilter();
-        lowOff.type = "lowpass";
-        const vL = parseFloat(lowSlider.value);
-        lowOff.frequency.value = 20000 - vL * (20000 - 500);
-
-        highOff.connect(lowOff);
-        lowOff.connect(masterOff);
-      }
-
-      masterOff.connect(offlineCtx.destination);
-
-      tracks.forEach(track => {
-        if (!track.buffer) return;
-
-        const src = offlineCtx.createBufferSource();
-        src.buffer = track.buffer;
-
-        const g = offlineCtx.createGain();
-        g.gain.value = track.volume;
-
-        if (fxEnabled) {
-          g.connect(highOff);
-        } else {
-          g.connect(masterOff);
-        }
-
-        src.start(0);
-      });
-
-      return offlineCtx.startRendering().then(renderedBuffer => {
-        const numChannels = renderedBuffer.numberOfChannels;
-        const left = renderedBuffer.getChannelData(0);
-        let samples = left;
-
-        if (numChannels > 1) {
-          const right = renderedBuffer.getChannelData(1);
-          const len = left.length;
-          const mixed = new Float32Array(len);
-          for (let i = 0; i < len; i++) {
-            mixed[i] = (left[i] + right[i]) / 2;
-          }
-          samples = mixed;
-        }
-
-        const mp3Encoder = new lamejs.Mp3Encoder(1, sampleRate, 192);
-        const blockSize = 1152;
-        const mp3Data = [];
-
-        let i = 0;
-        while (i < samples.length) {
-          const chunk = samples.subarray(i, i + blockSize);
-          const buffer = new Int16Array(chunk.length);
-          for (let j = 0; j < chunk.length; j++) {
-            let s = Math.max(-1, Math.min(1, chunk[j]));
-            buffer[j] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-          }
-          const mp3buf = mp3Encoder.encodeBuffer(buffer);
-          if (mp3buf.length > 0) mp3Data.push(mp3buf);
-          i += blockSize;
-        }
-
-        const end = mp3Encoder.flush();
-        if (end.length > 0) mp3Data.push(end);
-
-        return new Blob(mp3Data, { type: "audio/mpeg" });
-      });
-    }
-
-    recordBtn.onclick = () => {
-      if (tracks.length === 0) {
-        recordStatus.textContent = "Aucun mix à enregistrer.";
-        return;
-      }
-      ensureAudioContext();
-      recordStatus.textContent = "Encodage MP3 en cours...";
-      encodeMixToMp3().then(blob => {
-        if (blob) {
-          mp3Blob = blob;
-          recordStatus.textContent = "MP3 prêt. Clique sur Exporter.";
-          exportBtn.disabled = false;
-        } else {
-          recordStatus.textContent = "Erreur encodage MP3.";
-        }
-      });
-    };
-
-    exportBtn.onclick = () => {
-      if (!mp3Blob) return;
-      const url = URL.createObjectURL(mp3Blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "mix_dj.mp3";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    };
-  </script>
 </body>
 </html>
