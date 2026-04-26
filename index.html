@@ -2,9 +2,8 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Song 360 Fusion Mixer</title>
+<title>Song 360 Studio</title>
 
-<!-- ⭐ FAVICON -->
 <link rel="icon" type="image/png" href="favicon.png">
 
 <style>
@@ -49,10 +48,11 @@ body {
 button {
   background: #2b6cff;
   border: none;
-  padding: 8px 12px;
+  padding: 8px 10px;
   color: white;
   border-radius: 8px;
   cursor: pointer;
+  margin-right: 5px;
 }
 
 /* CANVAS */
@@ -62,7 +62,7 @@ button {
   z-index: 2;
 }
 
-/* TRACKS */
+/* TRACK */
 .track {
   position: absolute;
   width: 120px;
@@ -70,8 +70,8 @@ button {
   background: #1b2a4a;
   border-radius: 10px;
   padding: 5px;
-  cursor: grab;
   font-size: 11px;
+  cursor: grab;
 }
 
 /* LIBRARY */
@@ -79,7 +79,7 @@ button {
   position: absolute;
   right: 0;
   top: 0;
-  width: 240px;
+  width: 260px;
   height: 100vh;
   background: #0f1629;
   overflow-y: auto;
@@ -93,7 +93,6 @@ button {
   background: #1b2a4a;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 12px;
 }
 
 .sample:hover {
@@ -108,8 +107,8 @@ button {
   align-items: center;
   padding: 10px;
   gap: 12px;
-  position: relative;
   z-index: 5;
+  position: relative;
 }
 
 .eq {
@@ -133,8 +132,10 @@ input[type=range] {
   <div>
     <button onclick="file.click()">➕ Add</button>
     <button onclick="playAll()">▶ Play</button>
-    <button onclick="pauseAll()">⏸ Pause</button>
+    <button onclick="pauseAll()">⏸</button>
     <button onclick="exportWAV()">⬇ WAV</button>
+    <button onclick="saveProject()">💾 .song360</button>
+    <button onclick="loadProject()">📂 Load</button>
   </div>
   <div>🎧 SONG 360 Fusion Mixer</div>
 </div>
@@ -185,7 +186,6 @@ input[type=range] {
 
 const ctx = new AudioContext();
 
-/* MASTER */
 const master = ctx.createGain();
 master.gain.value = 0.85;
 
@@ -222,7 +222,7 @@ let gainNodes = [];
 let BPM = 120;
 let pitch = 1;
 
-/* FILE */
+/* FILE INPUT */
 file.onchange = async e=>{
   for(let f of e.target.files){
     let buf = await f.arrayBuffer();
@@ -232,12 +232,13 @@ file.onchange = async e=>{
 };
 
 /* =========================
-   TRACK + LIBRARY
+   TRACK
 ========================= */
 
 function createTrack(name, buffer){
 
   let id = samples.length;
+
   samples.push({name, buffer});
 
   let gain = ctx.createGain();
@@ -254,6 +255,7 @@ function createTrack(name, buffer){
   div.onclick = ()=> preview(id, div);
 
   canvas.appendChild(div);
+
   tracks.push({buffer, id, div});
 
   let item = document.createElement("div");
@@ -346,7 +348,96 @@ function setBPM(v){ BPM = Number(v); }
 function setPitch(v){ pitch = Number(v); }
 
 /* =========================
-   WAV EXPORT (OFFLINE RENDER)
+   SAVE .song360
+========================= */
+
+async function saveProject(){
+
+  let data = [];
+
+  for(let i=0;i<tracks.length;i++){
+
+    let t = tracks[i];
+
+    let buffer = samples[t.id].buffer;
+
+    let wav = bufferToWav(buffer);
+    let base64 = await new Promise(res=>{
+      let reader = new FileReader();
+      reader.onload = ()=> res(reader.result);
+      reader.readAsDataURL(new Blob([wav]));
+    });
+
+    data.push({
+      name: samples[t.id].name,
+      audio: base64,
+      volume: gainNodes[t.id].gain.value
+    });
+  }
+
+  let project = {
+    bpm: BPM,
+    pitch: pitch,
+    tracks: data
+  };
+
+  let blob = new Blob([JSON.stringify(project)], {type:"application/json"});
+
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "project.song360";
+  a.click();
+}
+
+/* =========================
+   LOAD .song360
+========================= */
+
+function loadProject(){
+
+  let inp = document.createElement("input");
+  inp.type = "file";
+
+  inp.onchange = async e=>{
+
+    let file = e.target.files[0];
+    let text = await file.text();
+    let project = JSON.parse(text);
+
+    BPM = project.bpm;
+    pitch = project.pitch;
+
+    tracks = [];
+    samples = [];
+    gainNodes = [];
+
+    canvas.innerHTML = "";
+    library.innerHTML = "";
+
+    for(let t of project.tracks){
+
+      let audioData = await fetch(t.audio).then(r=>r.arrayBuffer());
+      let buffer = await ctx.decodeAudioData(audioData);
+
+      let id = samples.length;
+
+      samples.push({name:t.name, buffer});
+
+      let gain = ctx.createGain();
+      gain.gain.value = t.volume;
+      gainNodes[id] = gain;
+
+      createTrack(t.name, buffer);
+    }
+
+    alert("🎧 Project loaded");
+  };
+
+  inp.click();
+}
+
+/* =========================
+   WAV EXPORT
 ========================= */
 
 function exportWAV(){
@@ -390,7 +481,7 @@ function exportWAV(){
 
     let a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "song360_mix.wav";
+    a.download = "song360.wav";
     a.click();
   });
 }
@@ -398,7 +489,7 @@ function exportWAV(){
 /* WAV ENCODER */
 function bufferToWav(buffer){
 
-  let length = buffer.length * 2 * 2 + 44;
+  let length = buffer.length * 4 + 44;
   let array = new ArrayBuffer(length);
   let view = new DataView(array);
 
@@ -411,7 +502,7 @@ function bufferToWav(buffer){
   }
 
   write("RIFF");
-  view.setUint32(offset, length-8, true); offset+=4;
+  view.setUint32(offset, length-8,true); offset+=4;
   write("WAVEfmt ");
   view.setUint32(offset,16,true); offset+=4;
   view.setUint16(offset,1,true); offset+=2;
@@ -425,15 +516,11 @@ function bufferToWav(buffer){
   view.setUint32(offset,length-offset-4,true); offset+=4;
 
   let ch0 = buffer.getChannelData(0);
-  let ch1 = buffer.getChannelData(1) || ch0;
+  let ch1 = buffer.getChannelData(1)||ch0;
 
   for(let i=0;i<buffer.length;i++){
-
-    let l = Math.max(-1, Math.min(1, ch0[i]));
-    let r = Math.max(-1, Math.min(1, ch1[i]));
-
-    view.setInt16(offset, l*0x7fff, true); offset+=2;
-    view.setInt16(offset, r*0x7fff, true); offset+=2;
+    view.setInt16(offset,ch0[i]*0x7fff,true); offset+=2;
+    view.setInt16(offset,ch1[i]*0x7fff,true); offset+=2;
   }
 
   return array;
