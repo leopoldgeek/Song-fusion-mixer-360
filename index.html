@@ -2,7 +2,10 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Song 360 Ableton Web Core</title>
+<title>Song 360 Ableton Web</title>
+
+<!-- ⭐ FAVICON -->
+<link rel="icon" type="image/png" href="favicon.png">
 
 <style>
 body {
@@ -13,8 +16,30 @@ body {
   overflow: hidden;
 }
 
+/* VINYL */
+#vinyl {
+  position: absolute;
+  width: 700px;
+  height: 700px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #222 10%, #000 70%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: spin 12s linear infinite;
+  opacity: 0.2;
+  z-index: 0;
+}
+
+@keyframes spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
 /* TOP */
 #topbar {
+  position: relative;
+  z-index: 5;
   display: flex;
   justify-content: space-between;
   padding: 10px;
@@ -30,42 +55,71 @@ button {
   cursor: pointer;
 }
 
-/* MAIN */
+/* CANVAS */
 #canvas {
-  height: calc(100vh - 160px);
   position: relative;
+  height: calc(100vh - 160px);
+  z-index: 2;
 }
 
-/* TRACKS */
+/* TRACK BUBBLES */
 .track {
   position: absolute;
-  width: 140px;
-  height: 80px;
+  width: 120px;
+  height: 70px;
   background: #1b2a4a;
   border-radius: 10px;
   padding: 5px;
   cursor: grab;
+  transition: 0.2s;
 }
 
 .track span {
+  font-size: 11px;
+}
+
+/* LIBRARY */
+#library {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 220px;
+  height: 100vh;
+  background: #0f1629;
+  overflow-y: auto;
+  padding: 10px;
+  z-index: 10;
+}
+
+.sample {
+  padding: 8px;
+  margin: 6px 0;
+  background: #1b2a4a;
+  border-radius: 8px;
+  cursor: pointer;
   font-size: 12px;
 }
 
-/* BOTTOM MIXER */
-#mixer {
+.sample:hover {
+  background: #2b6cff;
+}
+
+/* BOTTOM */
+#bottom {
   height: 80px;
   background: #0f1629;
   display: flex;
   align-items: center;
   padding: 10px;
   gap: 20px;
+  position: relative;
+  z-index: 5;
 }
 
-/* EQ */
 .eq {
+  font-size: 12px;
   display: flex;
   flex-direction: column;
-  font-size: 12px;
 }
 
 input[type=range] {
@@ -76,35 +130,44 @@ input[type=range] {
 
 <body>
 
+<div id="vinyl"></div>
+
+<!-- TOP -->
 <div id="topbar">
   <div>
-    <button onclick="file.click()">➕ Add Audio</button>
+    <button onclick="file.click()">➕ Add</button>
     <button onclick="playAll()">▶ Play</button>
     <button onclick="pauseAll()">⏸ Pause</button>
   </div>
-  <div>🎧 SONG 360 – ABLETON WEB</div>
+  <div>🎧 SONG 360 ABLETON WEB</div>
 </div>
 
+<!-- CENTER -->
 <div id="canvas"></div>
 
-<div id="mixer">
+<!-- LIBRARY -->
+<div id="library"></div>
+
+<!-- BOTTOM CONTROLS -->
+<div id="bottom">
+
   <div class="eq">
     Bass
-    <input type="range" min="-40" max="20" value="0" oninput="setEQ('bass', this.value)">
+    <input type="range" min="-40" max="20" value="0" oninput="setEQ('bass',this.value)">
   </div>
 
   <div class="eq">
     Mid
-    <input type="range" min="-40" max="20" value="0" oninput="setEQ('mid', this.value)">
+    <input type="range" min="-40" max="20" value="0" oninput="setEQ('mid',this.value)">
   </div>
 
   <div class="eq">
     Treble
-    <input type="range" min="-40" max="20" value="0" oninput="setEQ('treble', this.value)">
+    <input type="range" min="-40" max="20" value="0" oninput="setEQ('treble',this.value)">
   </div>
 
   <div class="eq">
-    BPM Sync
+    BPM
     <input type="range" min="60" max="180" value="120" oninput="setBPM(this.value)">
   </div>
 
@@ -112,6 +175,7 @@ input[type=range] {
     Pitch
     <input type="range" min="0.5" max="2" step="0.01" value="1" oninput="setPitch(this.value)">
   </div>
+
 </div>
 
 <input type="file" id="file" multiple hidden>
@@ -124,11 +188,10 @@ input[type=range] {
 
 const ctx = new AudioContext();
 
-/* MASTER CHAIN */
+/* MASTER CLEAN */
 const master = ctx.createGain();
-master.gain.value = 0.9;
+master.gain.value = 0.85;
 
-/* limiter */
 const comp = ctx.createDynamicsCompressor();
 comp.threshold.value = -18;
 comp.ratio.value = 10;
@@ -136,7 +199,7 @@ comp.ratio.value = 10;
 master.connect(comp);
 comp.connect(ctx.destination);
 
-/* FX NODES */
+/* FX EQ */
 const bass = ctx.createBiquadFilter();
 bass.type = "lowshelf";
 bass.frequency.value = 200;
@@ -144,13 +207,11 @@ bass.frequency.value = 200;
 const mid = ctx.createBiquadFilter();
 mid.type = "peaking";
 mid.frequency.value = 1000;
-mid.Q.value = 1;
 
 const treble = ctx.createBiquadFilter();
 treble.type = "highshelf";
 treble.frequency.value = 3000;
 
-/* CHAIN EQ */
 master.connect(bass);
 bass.connect(mid);
 mid.connect(treble);
@@ -158,51 +219,81 @@ treble.connect(comp);
 
 /* DATA */
 let tracks = [];
+let samples = [];
 
-/* BPM + PITCH */
 let BPM = 120;
 let pitch = 1;
 
-/* FILE INPUT */
+/* FILE */
 file.onchange = async e=>{
   for(let f of e.target.files){
-    let buffer = await f.arrayBuffer();
-    let audio = await ctx.decodeAudioData(buffer);
+    let buf = await f.arrayBuffer();
+    let audio = await ctx.decodeAudioData(buf);
     createTrack(f.name, audio);
   }
 };
 
 /* =========================
-   TRACK
+   TRACK + LIBRARY
 ========================= */
 
 function createTrack(name, buffer){
+
+  let id = samples.length;
+  samples.push({name, buffer});
 
   let div = document.createElement("div");
   div.className = "track";
   div.innerHTML = `<span>${name}</span>`;
 
-  div.style.left = Math.random()*300 + "px";
+  div.style.left = Math.random()*400 + "px";
   div.style.top = Math.random()*200 + "px";
 
-  let source = null;
-
-  div.onmousedown = () => {
-    let move = e=>{
-      div.style.left = e.pageX + "px";
-      div.style.top = e.pageY + "px";
-    };
-    document.onmousemove = move;
-    document.onmouseup = ()=> document.onmousemove = null;
-  };
+  div.onclick = ()=> preview(id, div);
 
   canvas.appendChild(div);
-
   tracks.push({buffer, div});
+
+  let item = document.createElement("div");
+  item.className = "sample";
+  item.innerText = name;
+  item.onclick = ()=> preview(id, div);
+
+  library.appendChild(item);
 }
 
 /* =========================
-   PLAY (BPM SYNC + PITCH)
+   PREVIEW SOUND
+========================= */
+
+function preview(id, div){
+
+  let s = samples[id];
+  if(!s) return;
+
+  let src = ctx.createBufferSource();
+  src.buffer = s.buffer;
+  src.playbackRate.value = pitch;
+
+  let g = ctx.createGain();
+  g.gain.value = 1;
+
+  src.connect(g);
+  g.connect(master);
+
+  src.start();
+
+  div.style.transform = "scale(1.3)";
+  div.style.boxShadow = "0 0 20px #2b6cff";
+
+  setTimeout(()=>{
+    div.style.transform = "scale(1)";
+    div.style.boxShadow = "none";
+  },300);
+}
+
+/* =========================
+   PLAY / PAUSE
 ========================= */
 
 function playAll(){
@@ -210,13 +301,10 @@ function playAll(){
 
   let start = ctx.currentTime + 0.1;
 
-  let beatTime = 60 / BPM;
-
   tracks.forEach((t,i)=>{
 
     let src = ctx.createBufferSource();
     src.buffer = t.buffer;
-
     src.playbackRate.value = pitch;
 
     let g = ctx.createGain();
@@ -225,16 +313,24 @@ function playAll(){
     src.connect(g);
     g.connect(master);
 
-    src.start(start + i * beatTime);
+    src.start(start + i*0.2);
   });
+}
+
+function pauseAll(){
+  ctx.suspend();
 }
 
 /* =========================
    CONTROLS
 ========================= */
 
-function pauseAll(){
-  ctx.suspend();
+function setEQ(type,v){
+  v = Number(v);
+
+  if(type==="bass") bass.gain.value = v;
+  if(type==="mid") mid.gain.value = v;
+  if(type==="treble") treble.gain.value = v;
 }
 
 function setBPM(v){
@@ -243,14 +339,6 @@ function setBPM(v){
 
 function setPitch(v){
   pitch = Number(v);
-}
-
-function setEQ(type, value){
-  value = Number(value);
-
-  if(type === "bass") bass.gain.value = value;
-  if(type === "mid") mid.gain.value = value;
-  if(type === "treble") treble.gain.value = value;
 }
 
 </script>
