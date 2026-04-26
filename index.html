@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Song 360 Fusion Mixer PRO</title>
+ <link rel="icon" href="favicon.png">
 
 <style>
 body {
@@ -16,14 +17,14 @@ body {
 /* VINYL BACKGROUND */
 #vinyl {
   position: absolute;
-  width: 600px;
-  height: 600px;
+  width: 700px;
+  height: 700px;
   border-radius: 50%;
   background: radial-gradient(circle, #222 10%, #000 70%);
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  animation: spin 10s linear infinite;
+  animation: spin 12s linear infinite;
   opacity: 0.25;
   z-index: 0;
 }
@@ -36,7 +37,7 @@ body {
 /* TOP BAR */
 #topbar {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   display: flex;
   justify-content: space-between;
   padding: 10px;
@@ -71,6 +72,13 @@ button {
   justify-content: center;
   cursor: grab;
   font-size: 12px;
+  user-select: none;
+  transition: 0.2s;
+}
+
+.bubble.merged {
+  background: #ffcc00;
+  transform: scale(1.2);
 }
 
 /* RIGHT EFFECTS */
@@ -102,7 +110,7 @@ button {
   align-items: center;
   padding: 10px;
   position: relative;
-  z-index: 2;
+  z-index: 3;
 }
 
 .track {
@@ -119,8 +127,8 @@ button {
 <div id="topbar">
   <div>
     <button onclick="document.getElementById('file').click()">➕ Ajouter son</button>
-    <button onclick="playAll()">▶ Play</button>
-    <button onclick="pauseAll()">⏸ Pause</button>
+    <button onclick="playMix()">▶ Play</button>
+    <button onclick="pauseMix()">⏸ Pause</button>
     <button onclick="startRecord()">⏺ Record</button>
     <button onclick="downloadMix()">⬇ Export</button>
     <button onclick="saveProject()">💾 Save</button>
@@ -128,19 +136,19 @@ button {
 
     <input type="file" id="file" multiple hidden>
   </div>
-  <div>🎧 SONG 360 PRO</div>
+  <div>🎧 SONG 360 FUSION MIXER</div>
 </div>
 
 <!-- CENTER -->
 <div id="canvas"></div>
 
-<!-- EFFECTS -->
+<!-- RIGHT FX -->
 <div id="effects">
   <h3>🎛 FX</h3>
-  <div class="effect" onclick="setEffect('reverb')">Reverb</div>
-  <div class="effect" onclick="setEffect('echo')">Echo</div>
-  <div class="effect" onclick="setEffect('filter')">Low Pass</div>
-  <div class="effect" onclick="setEffect('none')">Clean</div>
+  <div class="effect" onclick="setFX('echo')">Echo</div>
+  <div class="effect" onclick="setFX('filter')">Low Pass</div>
+  <div class="effect" onclick="setFX('reverb')">Reverb</div>
+  <div class="effect" onclick="setFX('none')">Clean</div>
 </div>
 
 <!-- BOTTOM -->
@@ -148,109 +156,41 @@ button {
 
 <script>
 
-const canvas = document.getElementById("canvas");
-const bottom = document.getElementById("bottom");
-const fileInput = document.getElementById("file");
-
 let ctx = new AudioContext();
+let master = ctx.createGain();
+master.connect(ctx.destination);
+
 let dest = ctx.createMediaStreamDestination();
+master.connect(dest);
+
 let recorder;
 
-let tracks = [];
+let buffers = [];
+let bubbles = [];
 
-let currentEffect = "none";
+let currentFX = "none";
 
-/* EFFECT BUS */
-let masterGain = ctx.createGain();
-masterGain.connect(ctx.destination);
-masterGain.connect(dest);
-
-/* LOAD FILE */
-fileInput.onchange = e => {
+/* FILE INPUT */
+document.getElementById("file").onchange = e=>{
   [...e.target.files].forEach(loadAudio);
 };
 
-/* LOAD AUDIO */
 function loadAudio(file){
   let reader = new FileReader();
 
-  reader.onload = async function(e){
+  reader.onload = async e=>{
     let buffer = await ctx.decodeAudioData(e.target.result);
 
-    let source = ctx.createBufferSource();
-    source.buffer = buffer;
+    buffers.push(buffer);
 
-    let gain = ctx.createGain();
-    gain.gain.value = 1;
-
-    let node = applyFX(ctx, gain);
-
-    source.connect(gain);
-    node.connect(masterGain);
-
-    tracks.push({file, buffer, gain});
-
-    createBubble(file.name, source, gain);
-    createSlider(file.name, gain);
+    createBubble(file.name, buffer);
   };
 
   reader.readAsArrayBuffer(file);
 }
 
-/* FX ENGINE */
-function applyFX(ctx, input){
-
-  let last = input;
-
-  if(currentEffect === "echo"){
-    let delay = ctx.createDelay();
-    delay.delayTime.value = 0.3;
-
-    let fb = ctx.createGain();
-    fb.gain.value = 0.4;
-
-    last.connect(delay);
-    delay.connect(fb);
-    fb.connect(delay);
-
-    delay.connect(masterGain);
-    return delay;
-  }
-
-  if(currentEffect === "filter"){
-    let filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 800;
-
-    last.connect(filter);
-    filter.connect(masterGain);
-    return filter;
-  }
-
-  if(currentEffect === "reverb"){
-    let convolver = ctx.createConvolver();
-    let impulse = ctx.createBuffer(2, ctx.sampleRate * 1.5, ctx.sampleRate);
-
-    for(let c=0;c<2;c++){
-      let data = impulse.getChannelData(c);
-      for(let i=0;i<data.length;i++){
-        data[i] = (Math.random()*2-1) * Math.exp(-i/20000);
-      }
-    }
-
-    convolver.buffer = impulse;
-
-    last.connect(convolver);
-    convolver.connect(masterGain);
-    return convolver;
-  }
-
-  last.connect(masterGain);
-  return masterGain;
-}
-
 /* BUBBLE */
-function createBubble(name, source, gain){
+function createBubble(name, buffer){
   let div = document.createElement("div");
   div.className = "bubble";
   div.innerText = "🎵";
@@ -264,63 +204,96 @@ function createBubble(name, source, gain){
   document.onmouseup = ()=> dragging = false;
 
   document.onmousemove = e=>{
-    if(dragging){
-      div.style.left = e.pageX + "px";
-      div.style.top = e.pageY + "px";
-    }
-  };
+    if(!dragging) return;
 
-  /* 🔥 FUSION CROSSFADE */
-  div.ondblclick = ()=>{
-    let target = 1.8;
-    gain.gain.linearRampToValueAtTime(target, ctx.currentTime + 0.5);
+    div.style.left = e.pageX + "px";
+    div.style.top = e.pageY + "px";
+
+    checkFusion(div, buffer);
   };
 
   canvas.appendChild(div);
+
+  bubbles.push({div, buffer});
 }
 
-/* VOLUME SLIDER */
-function createSlider(name, gain){
-  let div = document.createElement("div");
-  div.className = "track";
+/* 🔥 FUSION DETECTION */
+function checkFusion(activeDiv, activeBuffer){
+  bubbles.forEach(b=>{
 
-  div.innerHTML = `
-    <div>${name.slice(0,10)}</div>
-    <input type="range" min="0" max="2" step="0.01" value="1">
-  `;
+    if(b.div === activeDiv) return;
 
-  div.querySelector("input").oninput = e=>{
-    gain.gain.value = e.target.value;
-  };
+    let a = activeDiv.getBoundingClientRect();
+    let c = b.div.getBoundingClientRect();
 
-  bottom.appendChild(div);
+    let dx = a.left - c.left;
+    let dy = a.top - c.top;
+
+    let dist = Math.sqrt(dx*dx + dy*dy);
+
+    if(dist < 70){
+      mergeBuffers(activeBuffer, b.buffer);
+
+      activeDiv.classList.add("merged");
+      b.div.classList.add("merged");
+    }
+  });
 }
 
-/* EFFECT */
-function setEffect(type){
-  currentEffect = type;
+/* 🔥 REAL AUDIO FUSION */
+function mergeBuffers(buf1, buf2){
+
+  let length = Math.max(buf1.length, buf2.length);
+
+  let out = ctx.createBuffer(2, length, ctx.sampleRate);
+
+  for(let c=0;c<2;c++){
+    let a = buf1.getChannelData(0);
+    let b = buf2.getChannelData(0);
+    let o = out.getChannelData(c);
+
+    for(let i=0;i<length;i++){
+      let v1 = a[i] || 0;
+      let v2 = b[i] || 0;
+
+      let mix = i / length;
+
+      o[i] = (v1 * (1 - mix)) + (v2 * mix);
+    }
+  }
+
+  buffers = buffers.filter(b => b !== buf1 && b !== buf2);
+  buffers.push(out);
 }
 
-/* PLAY */
-function playAll(){
+/* PLAY MIX */
+function playMix(){
   ctx.resume();
-  tracks.forEach(t=>{
-    let s = ctx.createBufferSource();
-    s.buffer = t.buffer;
 
-    let g = ctx.createGain();
-    g.gain.value = t.gain.gain.value;
+  let start = ctx.currentTime + 0.1;
 
-    s.connect(g);
-    g.connect(masterGain);
+  buffers.forEach(b=>{
+    let src = ctx.createBufferSource();
+    src.buffer = b;
 
-    s.start();
+    let gain = ctx.createGain();
+    gain.gain.value = 1;
+
+    src.connect(gain);
+    gain.connect(master);
+
+    src.start(start);
   });
 }
 
 /* PAUSE */
-function pauseAll(){
+function pauseMix(){
   ctx.suspend();
+}
+
+/* FX */
+function setFX(type){
+  currentFX = type;
 }
 
 /* RECORD */
@@ -329,28 +302,30 @@ function startRecord(){
   recorder.start();
 
   recorder.ondataavailable = e=>{
-    window.recordedBlob = e.data;
-    window.recordedURL = URL.createObjectURL(e.data);
+    window.recBlob = e.data;
+    window.recURL = URL.createObjectURL(e.data);
   };
 }
 
 /* DOWNLOAD */
 function downloadMix(){
-  if(!window.recordedBlob) return alert("No recording");
+  if(!window.recBlob) return alert("No recording yet");
+
   let a = document.createElement("a");
-  a.href = window.recordedURL;
+  a.href = window.recURL;
   a.download = "song360_mix.webm";
   a.click();
 }
 
-/* SAVE PROJECT (.song360) */
+/* SAVE .song360 */
 function saveProject(){
-  let data = tracks.map(t=>({
-    name: t.file.name,
-    volume: t.gain.gain.value
+  let data = buffers.map((b,i)=>({
+    id: i,
+    length: b.length
   }));
 
   let blob = new Blob([JSON.stringify(data)], {type:"application/json"});
+
   let a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "project.song360";
@@ -368,7 +343,7 @@ function loadProject(){
 
     r.onload = e=>{
       let data = JSON.parse(e.target.result);
-      alert("Projet chargé (demo metadata): " + data.length + " pistes");
+      alert("Projet chargé : " + data.length + " pistes");
     };
 
     r.readAsText(f);
@@ -376,11 +351,6 @@ function loadProject(){
 
   inp.click();
 }
-
-/* FILE INPUT */
-fileInput.onchange = e=>{
-  [...e.target.files].forEach(loadAudio);
-};
 
 </script>
 
