@@ -71,8 +71,7 @@ button {
   border-radius: 10px;
   padding: 5px;
   cursor: grab;
-  transition: 0.2s;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 /* LIBRARY */
@@ -101,14 +100,14 @@ button {
   background: #2b6cff;
 }
 
-/* BOTTOM MIXER */
+/* BOTTOM */
 #bottom {
   height: 80px;
   background: #0f1629;
   display: flex;
   align-items: center;
   padding: 10px;
-  gap: 15px;
+  gap: 12px;
   position: relative;
   z-index: 5;
 }
@@ -132,9 +131,10 @@ input[type=range] {
 <!-- TOP -->
 <div id="topbar">
   <div>
-    <button onclick="file.click()">➕ Add Sound</button>
+    <button onclick="file.click()">➕ Add</button>
     <button onclick="playAll()">▶ Play</button>
     <button onclick="pauseAll()">⏸ Pause</button>
+    <button onclick="exportWAV()">⬇ WAV</button>
   </div>
   <div>🎧 SONG 360 Fusion Mixer</div>
 </div>
@@ -145,7 +145,7 @@ input[type=range] {
 <!-- LIBRARY -->
 <div id="library"></div>
 
-<!-- BOTTOM CONTROLS -->
+<!-- BOTTOM -->
 <div id="bottom">
 
   <div class="eq">
@@ -222,7 +222,7 @@ let gainNodes = [];
 let BPM = 120;
 let pitch = 1;
 
-/* FILE INPUT */
+/* FILE */
 file.onchange = async e=>{
   for(let f of e.target.files){
     let buf = await f.arrayBuffer();
@@ -238,15 +238,12 @@ file.onchange = async e=>{
 function createTrack(name, buffer){
 
   let id = samples.length;
-
   samples.push({name, buffer});
 
-  /* GAIN PISTE */
   let gain = ctx.createGain();
   gain.gain.value = 0.8;
   gainNodes[id] = gain;
 
-  /* TRACK VISUEL */
   let div = document.createElement("div");
   div.className = "track";
   div.innerText = name;
@@ -257,10 +254,8 @@ function createTrack(name, buffer){
   div.onclick = ()=> preview(id, div);
 
   canvas.appendChild(div);
+  tracks.push({buffer, id, div});
 
-  tracks.push({buffer, div, id});
-
-  /* LIBRARY ITEM + SLIDER */
   let item = document.createElement("div");
   item.className = "sample";
 
@@ -269,9 +264,7 @@ function createTrack(name, buffer){
     <input type="range" min="0" max="2" step="0.01" value="0.8">
   `;
 
-  let slider = item.querySelector("input");
-
-  slider.oninput = e=>{
+  item.querySelector("input").oninput = e=>{
     gainNodes[id].gain.value = e.target.value;
   };
 
@@ -281,7 +274,7 @@ function createTrack(name, buffer){
 }
 
 /* =========================
-   PREVIEW AUDIO
+   PREVIEW
 ========================= */
 
 function preview(id, div){
@@ -325,7 +318,7 @@ function playAll(){
     src.buffer = t.buffer;
     src.playbackRate.value = pitch;
 
-    let g = gainNodes[t.id] || ctx.createGain();
+    let g = gainNodes[t.id];
 
     src.connect(g);
     g.connect(master);
@@ -339,23 +332,111 @@ function pauseAll(){
 }
 
 /* =========================
-   EQ / BPM / PITCH
+   CONTROLS
 ========================= */
 
 function setEQ(type,v){
   v = Number(v);
-
   if(type==="bass") bass.gain.value = v;
   if(type==="mid") mid.gain.value = v;
   if(type==="treble") treble.gain.value = v;
 }
 
-function setBPM(v){
-  BPM = Number(v);
+function setBPM(v){ BPM = Number(v); }
+function setPitch(v){ pitch = Number(v); }
+
+/* =========================
+   WAV EXPORT (OFFLINE RENDER)
+========================= */
+
+function exportWAV(){
+
+  const length = ctx.sampleRate * 60;
+
+  const offline = new OfflineAudioContext(2, length, ctx.sampleRate);
+
+  const master = offline.createGain();
+  master.gain.value = 0.85;
+
+  const comp = offline.createDynamicsCompressor();
+  comp.threshold.value = -18;
+  comp.ratio.value = 10;
+
+  master.connect(comp);
+  comp.connect(offline.destination);
+
+  let start = 0;
+
+  tracks.forEach(t=>{
+
+    let src = offline.createBufferSource();
+    src.buffer = t.buffer;
+    src.playbackRate.value = pitch;
+
+    let g = offline.createGain();
+    g.gain.value = gainNodes[t.id]?.gain.value || 0.8;
+
+    src.connect(g);
+    g.connect(master);
+
+    src.start(start);
+    start += 0.1;
+  });
+
+  offline.startRendering().then(rendered=>{
+
+    let wav = bufferToWav(rendered);
+    let blob = new Blob([wav], {type:"audio/wav"});
+
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "song360_mix.wav";
+    a.click();
+  });
 }
 
-function setPitch(v){
-  pitch = Number(v);
+/* WAV ENCODER */
+function bufferToWav(buffer){
+
+  let length = buffer.length * 2 * 2 + 44;
+  let array = new ArrayBuffer(length);
+  let view = new DataView(array);
+
+  let offset = 0;
+
+  function write(s){
+    for(let i=0;i<s.length;i++){
+      view.setUint8(offset++, s.charCodeAt(i));
+    }
+  }
+
+  write("RIFF");
+  view.setUint32(offset, length-8, true); offset+=4;
+  write("WAVEfmt ");
+  view.setUint32(offset,16,true); offset+=4;
+  view.setUint16(offset,1,true); offset+=2;
+  view.setUint16(offset,2,true); offset+=2;
+  view.setUint32(offset,buffer.sampleRate,true); offset+=4;
+  view.setUint32(offset,buffer.sampleRate*4,true); offset+=4;
+  view.setUint16(offset,4,true); offset+=2;
+  view.setUint16(offset,16,true); offset+=2;
+
+  write("data");
+  view.setUint32(offset,length-offset-4,true); offset+=4;
+
+  let ch0 = buffer.getChannelData(0);
+  let ch1 = buffer.getChannelData(1) || ch0;
+
+  for(let i=0;i<buffer.length;i++){
+
+    let l = Math.max(-1, Math.min(1, ch0[i]));
+    let r = Math.max(-1, Math.min(1, ch1[i]));
+
+    view.setInt16(offset, l*0x7fff, true); offset+=2;
+    view.setInt16(offset, r*0x7fff, true); offset+=2;
+  }
+
+  return array;
 }
 
 </script>
