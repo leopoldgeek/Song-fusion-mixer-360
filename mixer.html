@@ -4,44 +4,129 @@
 <meta charset="UTF-8">
 <title>Mixer</title>
 <link rel="icon" href="favicon.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body{
+background:#020617;
+color:white;
+font-family:Arial;
+text-align:center;
+}
+button{
+margin:5px;
+padding:10px;
+background:#38bdf8;
+border:none;
+cursor:pointer;
+}
+</style>
 </head>
 
-<body style="background:#020617;color:white;text-align:center;font-family:Arial;">
+<body>
 
 <h2>🎧 Mixer</h2>
 
-<button onclick="go('profile.html')">👤 Profil</button>
-<button onclick="go('cloud.html')">☁️ Cloud</button>
+<button onclick="go('profile.html')">👤</button>
+<button onclick="go('cloud.html')">☁️</button>
 
 <br><br>
 
-<input type="file" id="fileInput">
+<button onclick="importLocal()">📂 Import PC</button>
+<button onclick="importCloud()">☁️ Import Cloud</button>
 
-<div id="zone"></div>
+<br><br>
+
+<div id="sounds"></div>
+
+<br>
+
+<button onclick="startRec()">🎙 Record</button>
+<button onclick="stopRec()">💾 Export MP3</button>
 
 <script>
-let sounds = [];
+const supabase = window.supabase.createClient(
+ "https://hnpfyxnodhthzxvwfnvl.supabase.co",
+ "sb_publishable_pJJjozADUUOFcBp3uut0dg_yH2SVm8V"
+);
 
-fileInput.onchange = (e)=>{
- const file = e.target.files[0];
- if(!file) return;
+let audios=[];
 
- const url = URL.createObjectURL(file);
- sounds.push({url,name:file.name});
+/* IMPORT LOCAL */
+function importLocal(){
+ const input=document.createElement("input");
+ input.type="file";
 
- const btn = document.createElement("button");
- btn.innerText = "▶ " + file.name;
+ input.onchange=e=>{
+ const file=e.target.files[0];
+ const url=URL.createObjectURL(file);
 
- btn.onclick = ()=> new Audio(url).play();
+ createSound(url,file.name);
+ };
 
- zone.appendChild(btn);
-};
+ input.click();
+}
 
-function go(p){ window.location = p; }
+/* IMPORT CLOUD */
+async function importCloud(){
+ const {data}=await supabase.from("sounds").select("*");
 
-window.onbeforeunload = ()=>{
- localStorage.setItem("mix", JSON.stringify(sounds));
-};
+ sounds.innerHTML="";
+
+ data.forEach(s=>{
+ const btn=document.createElement("button");
+ btn.innerText=s.name;
+
+ btn.onclick=()=>createSound(s.url,s.name);
+
+ sounds.appendChild(btn);
+ });
+}
+
+/* CREATE SOUND */
+function createSound(url,name){
+ const audio=new Audio(url);
+ audio.loop=true;
+
+ const btn=document.createElement("button");
+ btn.innerText="▶ "+name;
+
+ btn.onclick=()=>audio.play();
+
+ sounds.appendChild(btn);
+
+ audios.push(audio);
+}
+
+/* RECORD */
+let mediaRecorder, chunks=[];
+
+function startRec(){
+ const stream=new AudioContext().createMediaStreamDestination();
+ mediaRecorder=new MediaRecorder(stream.stream);
+
+ mediaRecorder.ondataavailable=e=>chunks.push(e.data);
+ mediaRecorder.start();
+
+ alert("recording...");
+}
+
+function stopRec(){
+ mediaRecorder.stop();
+
+ mediaRecorder.onstop=()=>{
+ const blob=new Blob(chunks,{type:"audio/mp3"});
+ const url=URL.createObjectURL(blob);
+
+ const a=document.createElement("a");
+ a.href=url;
+ a.download="mix.mp3";
+ a.click();
+ };
+}
+
+/* NAV */
+function go(p){window.location=p;}
 </script>
 
 </body>
