@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>Song 360 Fusion Mixer PRO</title>
- <link rel="icon" href="favicon.png">
 
 <style>
 body {
@@ -14,7 +13,7 @@ body {
   overflow: hidden;
 }
 
-/* VINYL BACKGROUND */
+/* VINYLE */
 #vinyl {
   position: absolute;
   width: 700px;
@@ -25,7 +24,7 @@ body {
   left: 50%;
   transform: translate(-50%, -50%);
   animation: spin 12s linear infinite;
-  opacity: 0.25;
+  opacity: 0.2;
   z-index: 0;
 }
 
@@ -71,7 +70,6 @@ button {
   align-items: center;
   justify-content: center;
   cursor: grab;
-  font-size: 12px;
   user-select: none;
   transition: 0.2s;
 }
@@ -81,7 +79,7 @@ button {
   transform: scale(1.2);
 }
 
-/* RIGHT EFFECTS */
+/* FX PANEL */
 #effects {
   position: absolute;
   right: 0;
@@ -131,18 +129,15 @@ button {
     <button onclick="pauseMix()">⏸ Pause</button>
     <button onclick="startRecord()">⏺ Record</button>
     <button onclick="downloadMix()">⬇ Export</button>
-    <button onclick="saveProject()">💾 Save</button>
-    <button onclick="loadProject()">📂 Load</button>
-
     <input type="file" id="file" multiple hidden>
   </div>
-  <div>🎧 SONG 360 FUSION MIXER</div>
+  <div>🎧 SONG 360 PRO AUDIO</div>
 </div>
 
 <!-- CENTER -->
 <div id="canvas"></div>
 
-<!-- RIGHT FX -->
+<!-- FX -->
 <div id="effects">
   <h3>🎛 FX</h3>
   <div class="effect" onclick="setFX('echo')">Echo</div>
@@ -156,21 +151,37 @@ button {
 
 <script>
 
-let ctx = new AudioContext();
-let master = ctx.createGain();
-master.connect(ctx.destination);
+/* =========================
+   🔊 AUDIO ENGINE PRO
+========================= */
 
+let ctx = new AudioContext();
+
+/* MASTER CLEAN + LIMITER */
+let master = ctx.createGain();
+master.gain.value = 0.85;
+
+let compressor = ctx.createDynamicsCompressor();
+compressor.threshold.value = -18;
+compressor.knee.value = 30;
+compressor.ratio.value = 10;
+compressor.attack.value = 0.003;
+compressor.release.value = 0.25;
+
+master.connect(compressor);
+compressor.connect(ctx.destination);
+
+/* RECORD */
 let dest = ctx.createMediaStreamDestination();
 master.connect(dest);
-
 let recorder;
 
+/* DATA */
 let buffers = [];
 let bubbles = [];
-
 let currentFX = "none";
 
-/* FILE INPUT */
+/* FILE LOAD */
 document.getElementById("file").onchange = e=>{
   [...e.target.files].forEach(loadAudio);
 };
@@ -182,14 +193,16 @@ function loadAudio(file){
     let buffer = await ctx.decodeAudioData(e.target.result);
 
     buffers.push(buffer);
-
     createBubble(file.name, buffer);
   };
 
   reader.readAsArrayBuffer(file);
 }
 
-/* BUBBLE */
+/* =========================
+   🫧 BUBBLES
+========================= */
+
 function createBubble(name, buffer){
   let div = document.createElement("div");
   div.className = "bubble";
@@ -217,7 +230,10 @@ function createBubble(name, buffer){
   bubbles.push({div, buffer});
 }
 
-/* 🔥 FUSION DETECTION */
+/* =========================
+   🔥 FUSION SYSTEM
+========================= */
+
 function checkFusion(activeDiv, activeBuffer){
   bubbles.forEach(b=>{
 
@@ -240,7 +256,7 @@ function checkFusion(activeDiv, activeBuffer){
   });
 }
 
-/* 🔥 REAL AUDIO FUSION */
+/* 🔥 PRO CROSSFADE MIX */
 function mergeBuffers(buf1, buf2){
 
   let length = Math.max(buf1.length, buf2.length);
@@ -248,25 +264,31 @@ function mergeBuffers(buf1, buf2){
   let out = ctx.createBuffer(2, length, ctx.sampleRate);
 
   for(let c=0;c<2;c++){
+
     let a = buf1.getChannelData(0);
     let b = buf2.getChannelData(0);
     let o = out.getChannelData(c);
 
     for(let i=0;i<length;i++){
-      let v1 = a[i] || 0;
-      let v2 = b[i] || 0;
 
-      let mix = i / length;
+      let t = i / length;
 
-      o[i] = (v1 * (1 - mix)) + (v2 * mix);
+      // 🎧 smooth DJ crossfade
+      let fadeA = Math.cos(t * Math.PI * 0.5);
+      let fadeB = Math.sin(t * Math.PI * 0.5);
+
+      o[i] = (a[i] || 0) * fadeA + (b[i] || 0) * fadeB;
     }
   }
 
-  buffers = buffers.filter(b => b !== buf1 && b !== buf2);
+  buffers = buffers.filter(x => x !== buf1 && x !== buf2);
   buffers.push(out);
 }
 
-/* PLAY MIX */
+/* =========================
+   ▶ PLAY MIX
+========================= */
+
 function playMix(){
   ctx.resume();
 
@@ -277,7 +299,7 @@ function playMix(){
     src.buffer = b;
 
     let gain = ctx.createGain();
-    gain.gain.value = 1;
+    gain.gain.value = 0.8;
 
     src.connect(gain);
     gain.connect(master);
@@ -286,17 +308,18 @@ function playMix(){
   });
 }
 
-/* PAUSE */
+/* =========================
+   ⏸ PAUSE
+========================= */
+
 function pauseMix(){
   ctx.suspend();
 }
 
-/* FX */
-function setFX(type){
-  currentFX = type;
-}
+/* =========================
+   ⏺ RECORD
+========================= */
 
-/* RECORD */
 function startRecord(){
   recorder = new MediaRecorder(dest.stream);
   recorder.start();
@@ -307,9 +330,12 @@ function startRecord(){
   };
 }
 
-/* DOWNLOAD */
+/* =========================
+   ⬇ EXPORT
+========================= */
+
 function downloadMix(){
-  if(!window.recBlob) return alert("No recording yet");
+  if(!window.recBlob) return alert("No recording");
 
   let a = document.createElement("a");
   a.href = window.recURL;
@@ -317,39 +343,12 @@ function downloadMix(){
   a.click();
 }
 
-/* SAVE .song360 */
-function saveProject(){
-  let data = buffers.map((b,i)=>({
-    id: i,
-    length: b.length
-  }));
+/* =========================
+   FX (placeholder ready)
+========================= */
 
-  let blob = new Blob([JSON.stringify(data)], {type:"application/json"});
-
-  let a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "project.song360";
-  a.click();
-}
-
-/* LOAD PROJECT */
-function loadProject(){
-  let inp = document.createElement("input");
-  inp.type = "file";
-
-  inp.onchange = e=>{
-    let f = e.target.files[0];
-    let r = new FileReader();
-
-    r.onload = e=>{
-      let data = JSON.parse(e.target.result);
-      alert("Projet chargé : " + data.length + " pistes");
-    };
-
-    r.readAsText(f);
-  };
-
-  inp.click();
+function setFX(type){
+  currentFX = type;
 }
 
 </script>
