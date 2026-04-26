@@ -1,46 +1,25 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
 <meta charset="UTF-8">
 <title>Cloud</title>
 <link rel="icon" href="favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-body{
- background:#020617;
- color:white;
- text-align:center;
- font-family:Arial;
-}
-button{
- margin:5px;
- padding:8px;
- background:#38bdf8;
- border:none;
- cursor:pointer;
-}
-.item{
- background:#111827;
- margin:10px;
- padding:10px;
-}
-</style>
 </head>
 
-<body>
+<body style="background:#020617;color:white;text-align:center;font-family:Arial;">
 
 <h2>☁️ Cloud</h2>
 
 <button onclick="go('mixer.html')">🎧</button>
 <button onclick="go('profile.html')">👤</button>
 
-<br>
+<br><br>
 
 <input type="file" id="file">
 <button onclick="upload()">Upload</button>
 
-<h3>📚 Bibliothèque</h3>
+<h3>Bibliothèque</h3>
 <div id="list"></div>
 
 <script>
@@ -50,39 +29,39 @@ const supabase = window.supabase.createClient(
 );
 
 async function upload(){
- const f=file.files[0];
- const name=Date.now()+f.name;
+ const f = file.files[0];
+ if(!f) return;
+
+ const name = Date.now()+"_"+f.name;
 
  await supabase.storage.from("songs").upload(name,f);
 
- const {data}=supabase.storage.from("songs").getPublicUrl(name);
+ const {data} = supabase.storage.from("songs").getPublicUrl(name);
 
  await supabase.from("sounds").insert([{
-  name:f.name,
-  url:data.publicUrl
+  name: f.name,
+  url: data.publicUrl
  }]);
 
- alert("upload ok");
  load();
 }
 
 async function load(){
- const {data}=await supabase.from("sounds").select("*");
+ const {data} = await supabase.from("sounds").select("*");
 
- list.innerHTML="";
+ list.innerHTML = "";
 
  data.forEach(s=>{
-  const div=document.createElement("div");
-  div.className="item";
-  div.innerText=s.name;
+  const btn = document.createElement("button");
+  btn.innerText = s.name;
 
-  div.onclick=()=>new Audio(s.url).play();
+  btn.onclick = ()=>new Audio(s.url).play();
 
-  list.appendChild(div);
+  list.appendChild(btn);
  });
 }
 
-function go(p){window.location=p;}
+function go(p){ window.location = p; }
 
 load();
 </script>
