@@ -2,41 +2,19 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Song 360 Fusion Mixer PRO</title>
+<title>Song 360 Ableton Web Core</title>
 
 <style>
 body {
   margin: 0;
-  font-family: Arial;
   background: #05070f;
   color: white;
+  font-family: Arial;
   overflow: hidden;
 }
 
-/* VINYLE */
-#vinyl {
-  position: absolute;
-  width: 700px;
-  height: 700px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #222 10%, #000 70%);
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation: spin 12s linear infinite;
-  opacity: 0.2;
-  z-index: 0;
-}
-
-@keyframes spin {
-  from { transform: translate(-50%, -50%) rotate(0deg); }
-  to { transform: translate(-50%, -50%) rotate(360deg); }
-}
-
-/* TOP BAR */
+/* TOP */
 #topbar {
-  position: relative;
-  z-index: 3;
   display: flex;
   justify-content: space-between;
   padding: 10px;
@@ -52,303 +30,227 @@ button {
   cursor: pointer;
 }
 
-/* CENTER */
+/* MAIN */
 #canvas {
-  position: relative;
   height: calc(100vh - 160px);
-  z-index: 2;
-}
-
-/* BUBBLES */
-.bubble {
-  position: absolute;
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: #2b6cff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: grab;
-  user-select: none;
-  transition: 0.2s;
-}
-
-.bubble.merged {
-  background: #ffcc00;
-  transform: scale(1.2);
-}
-
-/* FX PANEL */
-#effects {
-  position: absolute;
-  right: 0;
-  top: 60px;
-  width: 220px;
-  height: calc(100vh - 160px);
-  background: #0f1629;
-  z-index: 3;
-  padding: 10px;
-}
-
-.effect {
-  margin: 10px 0;
-  padding: 8px;
-  background: #1b2a4a;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-/* BOTTOM */
-#bottom {
-  height: 80px;
-  background: #0f1629;
-  display: flex;
-  overflow-x: auto;
-  align-items: center;
-  padding: 10px;
   position: relative;
-  z-index: 3;
 }
 
+/* TRACKS */
 .track {
-  margin-right: 15px;
+  position: absolute;
+  width: 140px;
+  height: 80px;
+  background: #1b2a4a;
+  border-radius: 10px;
+  padding: 5px;
+  cursor: grab;
+}
+
+.track span {
+  font-size: 12px;
+}
+
+/* BOTTOM MIXER */
+#mixer {
+  height: 80px;
+  background: #0f1629;
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  gap: 20px;
+}
+
+/* EQ */
+.eq {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+}
+
+input[type=range] {
+  width: 120px;
 }
 </style>
 </head>
 
 <body>
 
-<div id="vinyl"></div>
-
-<!-- TOP -->
 <div id="topbar">
   <div>
-    <button onclick="document.getElementById('file').click()">➕ Ajouter son</button>
-    <button onclick="playMix()">▶ Play</button>
-    <button onclick="pauseMix()">⏸ Pause</button>
-    <button onclick="startRecord()">⏺ Record</button>
-    <button onclick="downloadMix()">⬇ Export</button>
-    <input type="file" id="file" multiple hidden>
+    <button onclick="file.click()">➕ Add Audio</button>
+    <button onclick="playAll()">▶ Play</button>
+    <button onclick="pauseAll()">⏸ Pause</button>
   </div>
-  <div>🎧 SONG 360 PRO AUDIO</div>
+  <div>🎧 SONG 360 – ABLETON WEB</div>
 </div>
 
-<!-- CENTER -->
 <div id="canvas"></div>
 
-<!-- FX -->
-<div id="effects">
-  <h3>🎛 FX</h3>
-  <div class="effect" onclick="setFX('echo')">Echo</div>
-  <div class="effect" onclick="setFX('filter')">Low Pass</div>
-  <div class="effect" onclick="setFX('reverb')">Reverb</div>
-  <div class="effect" onclick="setFX('none')">Clean</div>
+<div id="mixer">
+  <div class="eq">
+    Bass
+    <input type="range" min="-40" max="20" value="0" oninput="setEQ('bass', this.value)">
+  </div>
+
+  <div class="eq">
+    Mid
+    <input type="range" min="-40" max="20" value="0" oninput="setEQ('mid', this.value)">
+  </div>
+
+  <div class="eq">
+    Treble
+    <input type="range" min="-40" max="20" value="0" oninput="setEQ('treble', this.value)">
+  </div>
+
+  <div class="eq">
+    BPM Sync
+    <input type="range" min="60" max="180" value="120" oninput="setBPM(this.value)">
+  </div>
+
+  <div class="eq">
+    Pitch
+    <input type="range" min="0.5" max="2" step="0.01" value="1" oninput="setPitch(this.value)">
+  </div>
 </div>
 
-<!-- BOTTOM -->
-<div id="bottom"></div>
+<input type="file" id="file" multiple hidden>
 
 <script>
 
 /* =========================
-   🔊 AUDIO ENGINE PRO
+   AUDIO ENGINE
 ========================= */
 
-let ctx = new AudioContext();
+const ctx = new AudioContext();
 
-/* MASTER CLEAN + LIMITER */
-let master = ctx.createGain();
-master.gain.value = 0.85;
+/* MASTER CHAIN */
+const master = ctx.createGain();
+master.gain.value = 0.9;
 
-let compressor = ctx.createDynamicsCompressor();
-compressor.threshold.value = -18;
-compressor.knee.value = 30;
-compressor.ratio.value = 10;
-compressor.attack.value = 0.003;
-compressor.release.value = 0.25;
+/* limiter */
+const comp = ctx.createDynamicsCompressor();
+comp.threshold.value = -18;
+comp.ratio.value = 10;
 
-master.connect(compressor);
-compressor.connect(ctx.destination);
+master.connect(comp);
+comp.connect(ctx.destination);
 
-/* RECORD */
-let dest = ctx.createMediaStreamDestination();
-master.connect(dest);
-let recorder;
+/* FX NODES */
+const bass = ctx.createBiquadFilter();
+bass.type = "lowshelf";
+bass.frequency.value = 200;
+
+const mid = ctx.createBiquadFilter();
+mid.type = "peaking";
+mid.frequency.value = 1000;
+mid.Q.value = 1;
+
+const treble = ctx.createBiquadFilter();
+treble.type = "highshelf";
+treble.frequency.value = 3000;
+
+/* CHAIN EQ */
+master.connect(bass);
+bass.connect(mid);
+mid.connect(treble);
+treble.connect(comp);
 
 /* DATA */
-let buffers = [];
-let bubbles = [];
-let currentFX = "none";
+let tracks = [];
 
-/* FILE LOAD */
-document.getElementById("file").onchange = e=>{
-  [...e.target.files].forEach(loadAudio);
+/* BPM + PITCH */
+let BPM = 120;
+let pitch = 1;
+
+/* FILE INPUT */
+file.onchange = async e=>{
+  for(let f of e.target.files){
+    let buffer = await f.arrayBuffer();
+    let audio = await ctx.decodeAudioData(buffer);
+    createTrack(f.name, audio);
+  }
 };
 
-function loadAudio(file){
-  let reader = new FileReader();
-
-  reader.onload = async e=>{
-    let buffer = await ctx.decodeAudioData(e.target.result);
-
-    buffers.push(buffer);
-    createBubble(file.name, buffer);
-  };
-
-  reader.readAsArrayBuffer(file);
-}
-
 /* =========================
-   🫧 BUBBLES
+   TRACK
 ========================= */
 
-function createBubble(name, buffer){
+function createTrack(name, buffer){
+
   let div = document.createElement("div");
-  div.className = "bubble";
-  div.innerText = "🎵";
+  div.className = "track";
+  div.innerHTML = `<span>${name}</span>`;
 
-  div.style.left = Math.random()*500 + "px";
-  div.style.top = Math.random()*300 + "px";
+  div.style.left = Math.random()*300 + "px";
+  div.style.top = Math.random()*200 + "px";
 
-  let dragging = false;
+  let source = null;
 
-  div.onmousedown = ()=> dragging = true;
-  document.onmouseup = ()=> dragging = false;
-
-  document.onmousemove = e=>{
-    if(!dragging) return;
-
-    div.style.left = e.pageX + "px";
-    div.style.top = e.pageY + "px";
-
-    checkFusion(div, buffer);
+  div.onmousedown = () => {
+    let move = e=>{
+      div.style.left = e.pageX + "px";
+      div.style.top = e.pageY + "px";
+    };
+    document.onmousemove = move;
+    document.onmouseup = ()=> document.onmousemove = null;
   };
 
   canvas.appendChild(div);
 
-  bubbles.push({div, buffer});
+  tracks.push({buffer, div});
 }
 
 /* =========================
-   🔥 FUSION SYSTEM
+   PLAY (BPM SYNC + PITCH)
 ========================= */
 
-function checkFusion(activeDiv, activeBuffer){
-  bubbles.forEach(b=>{
-
-    if(b.div === activeDiv) return;
-
-    let a = activeDiv.getBoundingClientRect();
-    let c = b.div.getBoundingClientRect();
-
-    let dx = a.left - c.left;
-    let dy = a.top - c.top;
-
-    let dist = Math.sqrt(dx*dx + dy*dy);
-
-    if(dist < 70){
-      mergeBuffers(activeBuffer, b.buffer);
-
-      activeDiv.classList.add("merged");
-      b.div.classList.add("merged");
-    }
-  });
-}
-
-/* 🔥 PRO CROSSFADE MIX */
-function mergeBuffers(buf1, buf2){
-
-  let length = Math.max(buf1.length, buf2.length);
-
-  let out = ctx.createBuffer(2, length, ctx.sampleRate);
-
-  for(let c=0;c<2;c++){
-
-    let a = buf1.getChannelData(0);
-    let b = buf2.getChannelData(0);
-    let o = out.getChannelData(c);
-
-    for(let i=0;i<length;i++){
-
-      let t = i / length;
-
-      // 🎧 smooth DJ crossfade
-      let fadeA = Math.cos(t * Math.PI * 0.5);
-      let fadeB = Math.sin(t * Math.PI * 0.5);
-
-      o[i] = (a[i] || 0) * fadeA + (b[i] || 0) * fadeB;
-    }
-  }
-
-  buffers = buffers.filter(x => x !== buf1 && x !== buf2);
-  buffers.push(out);
-}
-
-/* =========================
-   ▶ PLAY MIX
-========================= */
-
-function playMix(){
+function playAll(){
   ctx.resume();
 
   let start = ctx.currentTime + 0.1;
 
-  buffers.forEach(b=>{
+  let beatTime = 60 / BPM;
+
+  tracks.forEach((t,i)=>{
+
     let src = ctx.createBufferSource();
-    src.buffer = b;
+    src.buffer = t.buffer;
 
-    let gain = ctx.createGain();
-    gain.gain.value = 0.8;
+    src.playbackRate.value = pitch;
 
-    src.connect(gain);
-    gain.connect(master);
+    let g = ctx.createGain();
+    g.gain.value = 0.8;
 
-    src.start(start);
+    src.connect(g);
+    g.connect(master);
+
+    src.start(start + i * beatTime);
   });
 }
 
 /* =========================
-   ⏸ PAUSE
+   CONTROLS
 ========================= */
 
-function pauseMix(){
+function pauseAll(){
   ctx.suspend();
 }
 
-/* =========================
-   ⏺ RECORD
-========================= */
-
-function startRecord(){
-  recorder = new MediaRecorder(dest.stream);
-  recorder.start();
-
-  recorder.ondataavailable = e=>{
-    window.recBlob = e.data;
-    window.recURL = URL.createObjectURL(e.data);
-  };
+function setBPM(v){
+  BPM = Number(v);
 }
 
-/* =========================
-   ⬇ EXPORT
-========================= */
-
-function downloadMix(){
-  if(!window.recBlob) return alert("No recording");
-
-  let a = document.createElement("a");
-  a.href = window.recURL;
-  a.download = "song360_mix.webm";
-  a.click();
+function setPitch(v){
+  pitch = Number(v);
 }
 
-/* =========================
-   FX (placeholder ready)
-========================= */
+function setEQ(type, value){
+  value = Number(value);
 
-function setFX(type){
-  currentFX = type;
+  if(type === "bass") bass.gain.value = value;
+  if(type === "mid") mid.gain.value = value;
+  if(type === "treble") treble.gain.value = value;
 }
 
 </script>
